@@ -1,5 +1,5 @@
-import api from "./api";
 import { storage } from "../utils/storage";
+import api from "./api";
 
 export const authService = {
   async login(email, password) {
@@ -61,6 +61,22 @@ export const groupService = {
     return response.data;
   },
 
+  async editExpense(groupId, expenseId, amount, splitBetween, description) {
+    const response = await api.put(`/groups/${groupId}/expenses/${expenseId}`, {
+      amount,
+      splitBetween,
+      description,
+    });
+    return response.data;
+  },
+
+  async deleteExpense(groupId, expenseId) {
+    const response = await api.delete(
+      `/groups/${groupId}/expenses/${expenseId}`,
+    );
+    return response.data;
+  },
+
   async getGroupExpenses(groupId) {
     const response = await api.get(`/groups/${groupId}/expenses`);
     return response.data;
@@ -74,6 +90,13 @@ export const groupService = {
     const response = await api.post(`/groups/${groupId}/members`, { userId });
     return response.data;
   },
+
+  async removeMember(groupId, memberId) {
+    const response = await api.delete(`/groups/${groupId}/members`, {
+      data: { memberId },
+    });
+    return response.data;
+  },
 };
 export const userService = {
   async getUserList() {
@@ -84,6 +107,11 @@ export const userService = {
 
   async searchUserByEmail(email) {
     const response = await api.get(`/user/search`, { params: { email } });
+    return response.data;
+  },
+
+  async getUserProfile() {
+    const response = await api.get("/user/profile");
     return response.data;
   },
 };

@@ -8,10 +8,13 @@ import { COLORS } from "../utils/constants";
 import AddExpenseScreen from "./groups/AddExpenseScreen";
 import AddMemberScreen from "./groups/AddMemberScreen";
 import CreateGroupScreen from "./groups/CreateGroupScreen";
+import ExpenseDetailScreen from "./groups/ExpenseDetailScreen";
 import ExpenseHistoryScreen from "./groups/ExpenseHistoryScreen";
 import GroupDetailsScreen from "./groups/GroupDetailsScreen";
+import GroupMembersScreen from "./groups/GroupMembersScreen";
 import GroupsListScreen from "./groups/GroupsListScreen";
-import Home from "./home/Home";
+import UserExpensesScreen from "./groups/UserExpensesScreen";
+import ProfileScreen from "./home/ProfileScreen";
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -49,16 +52,31 @@ function GroupsStack() {
         component={ExpenseHistoryScreen}
         options={{ title: "Settlement" }}
       />
+      <Stack.Screen
+        name="ExpenseDetail"
+        component={ExpenseDetailScreen}
+        options={{ title: "Expense Details" }}
+      />
+      <Stack.Screen
+        name="GroupMembers"
+        component={GroupMembersScreen}
+        options={{ title: "Group Members" }}
+      />
+      <Stack.Screen
+        name="UserExpenses"
+        component={UserExpensesScreen}
+        options={{ title: "User Expenses" }}
+      />
     </Stack.Navigator>
   );
 }
-function HomeStack() {
+function ProfileStack() {
   return (
     <Stack.Navigator>
       <Stack.Screen
-        name="Profile"
-        component={Home}
-        options={{ title: "Home" }}
+        name="ProfileScreen"
+        component={ProfileScreen}
+        options={{ title: "Profile", headerShown: false }}
       />
     </Stack.Navigator>
   );
@@ -75,11 +93,8 @@ export default function MainTabNavigator() {
           if (route.name === "Groups") {
             iconName = "group";
           }
-          if (route.name === "Home") {
-            iconName = "home";
-          }
           if (route.name === "Profile") {
-            iconName = "logo";
+            iconName = "person";
           }
 
           return <Icon name={iconName} size={size} color={color} />;
@@ -91,7 +106,7 @@ export default function MainTabNavigator() {
     >
       {a && <Tab.Screen name="Groups" component={GroupsStack} />}
 
-      <Tab.Screen name="Home" component={HomeStack} />
+      <Tab.Screen name="Profile" component={ProfileStack} />
     </Tab.Navigator>
   );
 }

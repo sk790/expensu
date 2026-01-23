@@ -1,13 +1,13 @@
 import React, { useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import Icon from "react-native-vector-icons/MaterialIcons";
 import { groupService, userService } from "../../services/authService";
@@ -15,8 +15,8 @@ import { COLORS } from "../../utils/constants";
 
 export default function AddMemberScreen({ route, navigation }) {
   const { groupId, currentMembers } = route.params;
-//   console.log(groupId,currentMembers);
-  
+  //   console.log(groupId,currentMembers);
+
   const [email, setEmail] = useState("");
   const [searchResults, setSearchResults] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -31,15 +31,14 @@ export default function AddMemberScreen({ route, navigation }) {
     setSearching(true);
     try {
       const response = await userService.searchUserByEmail(email.trim());
-      console.log(response,'user');
-      
+      console.log(response, "user");
 
       // Check if user is already a member
       const isAlreadyMember = currentMembers.some(
-        (member) => member._id === response.user._id
+        (member) => member._id === response.user._id,
       );
-      console.log(isAlreadyMember,'al');
-      
+      console.log(isAlreadyMember, "al");
+
       if (isAlreadyMember) {
         Alert.alert("Info", "This user is already a member of the group");
         setSearchResults(null);
@@ -56,8 +55,8 @@ export default function AddMemberScreen({ route, navigation }) {
   };
 
   const handleAddMember = async () => {
-    console.log(searchResults,'search');
-    
+    console.log(searchResults, "search");
+
     if (!searchResults) {
       Alert.alert("Error", "Please search for a user first");
       return;
@@ -65,11 +64,14 @@ export default function AddMemberScreen({ route, navigation }) {
 
     setLoading(true);
     try {
-        console.log(groupId, searchResults.id,'groupId');
-        
-      const res = await groupService.addMemberToGroup(groupId, searchResults.id);
-      console.log(res,'res');
-      
+      console.log(groupId, searchResults._id, "groupId");
+
+      const res = await groupService.addMemberToGroup(
+        groupId,
+        searchResults._id,
+      );
+      console.log(res, "res");
+
       Alert.alert(
         "Success",
         `${searchResults.name} has been added to the group!`,
@@ -82,12 +84,12 @@ export default function AddMemberScreen({ route, navigation }) {
               navigation.goBack();
             },
           },
-        ]
+        ],
       );
     } catch (error) {
       Alert.alert(
         "Error",
-        error.response?.data?.message || "Failed to add member"
+        error.response?.data?.message || "Failed to add member",
       );
     } finally {
       setLoading(false);
