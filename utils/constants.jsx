@@ -1,7 +1,7 @@
 // Change this to your backend URL
-export const API_BASE_URL = "http://10.86.19.109:3000/api"; // For Android emulator
+// export const API_BASE_URL = "http://10.86.19.109:3000/api"; // For Android emulator
 // export const API_BASE_URL = 'http://localhost:3000/api'; // For iOS simulator
-// export const API_BASE_URL = 'http://YOUR_IP:3000/api'; // For physical device
+export const API_BASE_URL = 'https://split-backend-strr.onrender.com/api'; // For physical device
 
 export const COLORS = {
   primary: "#4CAF50",
