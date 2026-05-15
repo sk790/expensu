@@ -20,6 +20,7 @@ import AnimatedView from "../../components/AnimatedView";
 import * as Haptics from "expo-haptics";
 import CustomAlert from "../../components/CustomAlert";
 import { useAlert } from "../../hooks/useAlert";
+import LoadingSpinner from "../../components/LoadingSpinner";
 
 export default function ProfileScreen({ navigation }) {
   const [user, setUser] = useState(null);
@@ -68,16 +69,7 @@ export default function ProfileScreen({ navigation }) {
   };
 
   if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <StatusBar
-          barStyle="light-content"
-          backgroundColor={COLORS.gradientStart}
-          translucent
-        />
-        <ActivityIndicator size="large" color={COLORS.primary} />
-      </View>
-    );
+    return <LoadingSpinner message="Loading your profile..." />;
   }
 
   if (!user) return null;

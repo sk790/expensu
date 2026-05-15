@@ -128,8 +128,8 @@ export default function AddMemberScreen({ route, navigation }) {
   return (
     <KeyboardAvoidingView
       style={styles.containerWrapper}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 20}
+      behavior="padding"
+      keyboardVerticalOffset={Platform.OS === "ios" ? 100 : 20}
     >
       <CustomAlert {...alertProps} />
       <ScrollView
@@ -304,6 +304,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 24,
+    paddingBottom: 100,
     flexGrow: 1,
   },
   headerContainer: {

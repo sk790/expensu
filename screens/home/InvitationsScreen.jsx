@@ -17,6 +17,7 @@ import AnimatedView from "../../components/AnimatedView";
 import * as Haptics from "expo-haptics";
 import CustomAlert from "../../components/CustomAlert";
 import { useAlert } from "../../hooks/useAlert";
+import LoadingSpinner from "../../components/LoadingSpinner";
 
 export default function InvitationsScreen({ navigation }) {
   const [invitations, setInvitations] = useState([]);
@@ -121,11 +122,7 @@ export default function InvitationsScreen({ navigation }) {
   );
 
   if (loading && !refreshing) {
-    return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
-      </View>
-    );
+    return <LoadingSpinner message="Checking for requests..." />;
   }
 
   return (

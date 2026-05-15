@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { COLORS } from '../utils/constants';
+import { COLORS, SHADOWS } from '../utils/constants';
 
 export default function BalanceCard({ balance }) {
   const isPositive = balance.netBalance > 0;
@@ -59,11 +59,7 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 12,
     borderRadius: 16,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
+    ...SHADOWS.soft,
   },
   header: {
     flexDirection: 'row',

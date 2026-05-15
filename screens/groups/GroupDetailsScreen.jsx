@@ -3,6 +3,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useCallback, useLayoutEffect, useState } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   ActivityIndicator,
   Alert,
@@ -25,6 +26,7 @@ import Animated, {
 import AnimatedView from "../../components/AnimatedView";
 import ExpenseCard from "../../components/ExpenseCard";
 import GroupSummaryCard from "../../components/GroupSummaryCard";
+import LoadingSpinner from "../../components/LoadingSpinner";
 import { groupService } from "../../services/authService";
 import { COLORS } from "../../utils/constants";
 
@@ -41,6 +43,7 @@ export default function GroupDetailScreen({ route, navigation }) {
   const [settleData, setSettleData] = useState(null);
   const [customSettleAmount, setCustomSettleAmount] = useState("");
   const [settling, setSettling] = useState(false);
+  const insets = useSafeAreaInsets();
 
   const openSettleModal = (data) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -143,12 +146,7 @@ export default function GroupDetailScreen({ route, navigation }) {
   };
 
   if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
-        <Text style={styles.loadingText}>Loading…</Text>
-      </View>
-    );
+    return <LoadingSpinner message="Loading group details..." />;
   }
 
   return (
@@ -411,9 +409,8 @@ export default function GroupDetailScreen({ route, navigation }) {
 
       <AnimatedView
         entering={ZoomIn.duration(400).delay(500)}
-        style={styles.floatingButtonContainer}
+        style={[styles.floatingButtonContainer, { bottom: insets.bottom  }]}
       >
-        <View style={styles.fabPulse} />
         <TouchableOpacity
           style={styles.floatingButton}
           activeOpacity={0.8}
@@ -431,7 +428,8 @@ export default function GroupDetailScreen({ route, navigation }) {
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
           >
-            <Ionicons name="add" size={32} color={COLORS.white} />
+            <Ionicons name="add" size={24} color={COLORS.white} />
+            <Text style={styles.fabLabel}>Add Expense</Text>
           </LinearGradient>
         </TouchableOpacity>
       </AnimatedView>
@@ -593,29 +591,31 @@ const styles = StyleSheet.create({
   },
   floatingButtonContainer: {
     position: "absolute",
-    bottom: 30,
-    right: 20,
+    right: 24,
     zIndex: 10,
     alignItems: "center",
     justifyContent: "center",
   },
-  fabPulse: {
-    position: "absolute",
-    width: 76,
-    height: 76,
-    borderRadius: 38,
-    backgroundColor: COLORS.primary + "28",
-  },
   floatingButton: {
-    width: 62,
-    height: 62,
-    borderRadius: 31,
+    height: 54,
+    borderRadius: 27,
     overflow: "hidden",
+    // Explicitly no shadow
+    shadowColor: "transparent",
+    elevation: 0,
   },
   fabGradient: {
     flex: 1,
-    justifyContent: "center",
+    flexDirection: "row",
     alignItems: "center",
+    paddingHorizontal: 22,
+    gap: 8,
+  },
+  fabLabel: {
+    color: "#FFF",
+    fontSize: 16,
+    fontWeight: "800",
+    letterSpacing: 0.3,
   },
   tabContainer: {
     flexDirection: "row",

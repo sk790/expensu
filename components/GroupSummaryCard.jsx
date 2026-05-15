@@ -2,7 +2,7 @@ import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { COLORS } from "../utils/constants";
+import { COLORS, SHADOWS } from "../utils/constants";
 
 const getInitials = (name = "") => name.substring(0, 2).toUpperCase();
 
@@ -109,6 +109,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     borderWidth: 1,
     borderColor: "#F0F0F0",
+    ...SHADOWS.medium,
   },
   topRow: {
     flexDirection: "row",

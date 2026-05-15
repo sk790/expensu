@@ -6,7 +6,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { COLORS } from "../utils/constants";
+import { COLORS, SHADOWS } from "../utils/constants";
 
 // Deterministic gradient-like accent from group name
 const GROUP_ACCENTS = [
@@ -125,9 +125,9 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     marginHorizontal: 16,
     marginVertical: 10,
-    overflow: "hidden",
     borderWidth: 1,
     borderColor: "rgba(0,0,0,0.03)",
+    ...SHADOWS.soft,
   },
   cardHeader: {
     flexDirection: "row",
@@ -135,6 +135,8 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     padding: 16,
     paddingBottom: 12,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
   },
   avatarCircle: {
     width: 48,

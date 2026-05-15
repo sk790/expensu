@@ -150,7 +150,8 @@ export default function CreateGroupScreen({ navigation, route }) {
   return (
     <KeyboardAvoidingView
       style={styles.root}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      behavior="padding"
+      keyboardVerticalOffset={Platform.OS === "ios" ? 100 : 20}
     >
       <StatusBar barStyle="dark-content" />
       <CustomAlert {...alertProps} />
@@ -338,7 +339,7 @@ export default function CreateGroupScreen({ navigation, route }) {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#F4F5FA" },
-  scroll: { padding: 24, flexGrow: 1 },
+  scroll: { padding: 24, paddingBottom: 120, flexGrow: 1 },
 
   heroSection: { alignItems: "center", marginBottom: 32, marginTop: 8 },
   iconCircle: {

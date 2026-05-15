@@ -13,6 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../../context/AuthContext";
 import { walletService } from "../../services/authService";
 import { COLORS } from "../../utils/constants";
+import LoadingSpinner from "../../components/LoadingSpinner";
 
 const WalletScreen = ({ navigation }) => {
   const { user, updateUser } = useAuth();
@@ -45,6 +46,10 @@ const WalletScreen = ({ navigation }) => {
     setRefreshing(true);
     fetchWalletStats();
   };
+
+  if (loading && !refreshing) {
+    return <LoadingSpinner message="Checking your wallet..." />;
+  }
 
   return (
     <SafeAreaView style={styles.container}>

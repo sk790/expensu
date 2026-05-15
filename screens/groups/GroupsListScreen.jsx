@@ -28,6 +28,7 @@ import CustomAlert from "../../components/CustomAlert";
 import GroupCard from "../../components/GroupCard";
 import { useAuth } from "../../context/AuthContext";
 import { useAlert } from "../../hooks/useAlert";
+import LoadingSpinner from "../../components/LoadingSpinner";
 import {
   groupService,
   groupInvitationService,
@@ -126,14 +127,14 @@ export default function GroupsListScreen({ navigation }) {
             navigation.navigate("CreateGroup", { group });
           }}
         >
-          <Ionicons name="pencil" size={22} color="#FFF" />
+          <Ionicons name="pencil" size={20} color="#FFF" />
           <Text style={styles.actionText}>Edit</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.actionBtn, { backgroundColor: COLORS.danger }]}
           onPress={() => handleDeleteGroup(group)}
         >
-          <Ionicons name="trash-outline" size={22} color="#FFF" />
+          <Ionicons name="trash-outline" size={20} color="#FFF" />
           <Text style={styles.actionText}>Delete</Text>
         </TouchableOpacity>
       </View>
@@ -170,24 +171,7 @@ export default function GroupsListScreen({ navigation }) {
   );
 
   if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <StatusBar
-          barStyle="light-content"
-          backgroundColor={ACCENT}
-          translucent
-        />
-        <LinearGradient
-          colors={[ACCENT, ACCENT2]}
-          style={styles.loadingGradient}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
-          <ActivityIndicator size="large" color="#FFF" />
-          <Text style={styles.loadingText}>Loading groups…</Text>
-        </LinearGradient>
-      </View>
-    );
+    return <LoadingSpinner message="Fetching your groups..." />;
   }
 
   return (
@@ -385,9 +369,8 @@ export default function GroupsListScreen({ navigation }) {
 
       <AnimatedView
         entering={ZoomIn.duration(400).delay(300)}
-        style={[styles.fabContainer, { bottom: insets.bottom + 75 }]}
+        style={[styles.fabContainer, { bottom: insets.bottom + 16 }]}
       >
-        <View style={styles.fabPulse} />
         <TouchableOpacity
           style={styles.fab}
           onPress={() => {
@@ -402,7 +385,8 @@ export default function GroupsListScreen({ navigation }) {
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
           >
-            <Ionicons name="add" size={32} color="#FFF" />
+            <Ionicons name="add" size={24} color="#FFF" />
+            <Text style={styles.fabLabel}>Create Group</Text>
           </LinearGradient>
         </TouchableOpacity>
       </AnimatedView>
@@ -587,43 +571,46 @@ const styles = StyleSheet.create({
   },
   fabContainer: {
     position: "absolute",
-    right: 22,
+    right: 24,
     alignItems: "center",
     justifyContent: "center",
     zIndex: 999,
   },
-  fabPulse: {
-    position: "absolute",
-    width: 76,
-    height: 76,
-    borderRadius: 38,
-    backgroundColor: ACCENT + "20",
-  },
   fab: {
-    width: 62,
-    height: 62,
-    borderRadius: 31,
+    height: 54,
+    borderRadius: 27,
     backgroundColor: ACCENT,
+    // Explicitly no shadow as requested
+    shadowColor: "transparent",
+    elevation: 0,
   },
   fabGradient: {
     flex: 1,
-    borderRadius: 31,
-    overflow: "hidden",
-    justifyContent: "center",
+    borderRadius: 27,
+    flexDirection: "row",
     alignItems: "center",
+    paddingHorizontal: 22,
+    gap: 8,
+  },
+  fabLabel: {
+    color: "#FFF",
+    fontSize: 16,
+    fontWeight: "800",
+    letterSpacing: 0.3,
   },
   rightActions: {
-    flexDirection: "row",
+    flexDirection: "column",
     height: "100%",
-    paddingVertical: 10,
-    paddingRight: 16,
-    borderRadius: 24,
-    overflow: "hidden",
+    paddingVertical: 8,
+    paddingRight: 12,
+    gap: 8,
   },
   actionBtn: {
-    width: 75,
+    flex: 1,
+    width: 65,
     justifyContent: "center",
     alignItems: "center",
+    borderRadius: 16,
   },
   actionText: {
     color: "#FFF",

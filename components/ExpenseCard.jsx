@@ -1,7 +1,7 @@
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { COLORS } from "../utils/constants";
+import { COLORS, SHADOWS } from "../utils/constants";
 
 // Simple color palette for category icons
 const CATEGORY_COLORS = [
@@ -79,9 +79,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderRadius: 18,
     marginBottom: 12,
-    overflow: "hidden",
     borderWidth: 1,
     borderColor: "#F0F0F0",
+    ...SHADOWS.soft,
   },
   accentBar: {
     width: 4,

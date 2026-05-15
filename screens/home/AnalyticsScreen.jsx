@@ -11,7 +11,6 @@ import {
   StyleSheet,
   Text,
   View,
-  ActivityIndicator,
 } from "react-native";
 import { BarChart, PieChart, LineChart } from "react-native-chart-kit";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -19,7 +18,7 @@ import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
 import { groupService } from "../../services/authService";
 import { COLORS } from "../../utils/constants";
 import AnimatedView from "../../components/AnimatedView";
-
+import LoadingSpinner from "../../components/LoadingSpinner";
 const ACCENT = "#6C63FF";
 const ACCENT2 = "#43C6AC";
 const screenWidth = Dimensions.get("window").width;
@@ -110,12 +109,8 @@ export default function AnalyticsScreen() {
     propsForDots: { r: "6", strokeWidth: "2", stroke: "#ffa726" },
   };
 
-  if (loading) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color={ACCENT} />
-      </View>
-    );
+  if (loading && !refreshing) {
+    return <LoadingSpinner message="Analyzing your finances..." />;
   }
 
   return (

@@ -17,6 +17,11 @@ import Animated, {
   FadeInUp,
   Layout,
   ZoomIn,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+  runOnJS,
 } from "react-native-reanimated";
 import AnimatedView from "../../components/AnimatedView";
 import CustomAlert from "../../components/CustomAlert";
@@ -24,6 +29,7 @@ import { useAlert } from "../../hooks/useAlert";
 import { groupService } from "../../services/authService";
 import { COLORS } from "../../utils/constants";
 import { storage } from "../../utils/storage";
+import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
 
 export default function GroupMembersScreen({ route, navigation }) {
   const { groupId, group, expenses } = route.params;
@@ -173,10 +179,51 @@ export default function GroupMembersScreen({ route, navigation }) {
     });
   };
 
+  const translateY = useSharedValue(600);
+  const opacity = useSharedValue(0);
+
   const closeModal = () => {
-    setModalVisible(false);
-    setSelectedMember(null);
+    translateY.value = withTiming(600, { duration: 300 }, () => {
+      runOnJS(setModalVisible)(false);
+      runOnJS(setSelectedMember)(null);
+    });
+    opacity.value = withTiming(0, { duration: 300 });
   };
+
+  React.useEffect(() => {
+    if (modalVisible) {
+      translateY.value = withSpring(0, {
+        damping: 20,
+        stiffness: 90,
+      });
+      opacity.value = withTiming(1, { duration: 300 });
+    }
+  }, [modalVisible]);
+
+  const panGesture = Gesture.Pan()
+    .onStart((_) => {
+      translateY.value = translateY.value;
+    })
+    .onUpdate((event) => {
+      if (event.translationY > 0) {
+        translateY.value = event.translationY;
+      }
+    })
+    .onEnd((event) => {
+      if (event.translationY > 150 || event.velocityY > 500) {
+        runOnJS(closeModal)();
+      } else {
+        translateY.value = withSpring(0);
+      }
+    });
+
+  const animatedSheetStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }],
+  }));
+
+  const animatedOverlayStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+  }));
 
   const getInitials = (name) =>
     name ? name.substring(0, 2).toUpperCase() : "?";
@@ -359,7 +406,7 @@ export default function GroupMembersScreen({ route, navigation }) {
       {/* FAB */}
       <AnimatedView
         entering={ZoomIn.duration(400).delay(400)}
-        style={styles.fabContainer}
+        style={[styles.fabContainer, { bottom: 16 }]}
       >
         <TouchableOpacity
           style={styles.fab}
@@ -372,179 +419,139 @@ export default function GroupMembersScreen({ route, navigation }) {
           }}
           activeOpacity={0.85}
         >
-          <Ionicons name="person-add-outline" size={26} color={COLORS.white} />
+          <Ionicons name="person-add-outline" size={22} color={COLORS.white} />
+          <Text style={styles.fabLabel}>Add Member</Text>
         </TouchableOpacity>
       </AnimatedView>
 
-      {/* Bottom Sheet Modal */}
+      {/* Gesture Controlled Modal */}
       <Modal
         visible={modalVisible}
         transparent
-        animationType="slide"
+        animationType="none"
         onRequestClose={closeModal}
       >
-        <View style={styles.modalOverlay}>
-          <TouchableOpacity
-            style={StyleSheet.absoluteFillObject}
-            onPress={closeModal}
-            activeOpacity={1}
-          />
-          <AnimatedView
-            entering={FadeInUp.duration(300)}
-            style={styles.modalSheet}
-          >
-            {/* Handle */}
-            <View style={styles.modalHandle} />
+        <GestureHandlerRootView style={{ flex: 1 }}>
+          <View style={styles.modalOverlay}>
+            <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(0,0,0,0.5)" }, animatedOverlayStyle]}>
+              <TouchableOpacity
+                style={StyleSheet.absoluteFillObject}
+                onPress={closeModal}
+                activeOpacity={1}
+              />
+            </Animated.View>
+            
+            <GestureDetector gesture={panGesture}>
+              <Animated.View
+                style={[styles.modalSheet, animatedSheetStyle]}
+              >
+                {/* Handle */}
+                <View style={styles.modalHandle} />
 
-            {selectedMember && (
-              <>
-                {/* Member Info */}
-                <View style={styles.modalMemberSection}>
-                  <View
-                    style={[
-                      styles.modalAvatar,
-                      group?.createdBy?._id === selectedMember._id &&
-                        styles.memberAvatarAdmin,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.modalAvatarText,
-                        group?.createdBy?._id === selectedMember._id &&
-                          styles.avatarTextAdmin,
-                      ]}
-                    >
-                      {getInitials(selectedMember.name)}
-                    </Text>
-                  </View>
-                  <View style={styles.modalMemberInfo}>
-                    <View style={styles.memberNameRow}>
-                      <Text style={styles.modalMemberName}>
-                        {selectedMember.name}
-                      </Text>
-                      {group?.createdBy?._id === selectedMember._id && (
-                        <View style={styles.adminBadge}>
-                          <Ionicons
-                            name="shield-checkmark"
-                            size={11}
-                            color={COLORS.primary}
-                          />
-                          <Text style={styles.adminBadgeText}>Admin</Text>
+                {selectedMember && (
+                  <>
+                    {/* Header */}
+                    <View style={styles.modalHeader}>
+                      <View style={styles.modalAvatarContainer}>
+                        <View
+                          style={[
+                            styles.modalAvatar,
+                            group?.createdBy?._id === selectedMember._id &&
+                              styles.memberAvatarAdmin,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.modalAvatarText,
+                              group?.createdBy?._id === selectedMember._id &&
+                                styles.avatarTextAdmin,
+                            ]}
+                          >
+                            {getInitials(selectedMember.name)}
+                          </Text>
                         </View>
-                      )}
-                    </View>
-                    <Text style={styles.modalMemberEmail}>
-                      {selectedMember.email}
-                    </Text>
-                    <View style={styles.modalPaidRow}>
-                      <Ionicons
-                        name="card-outline"
-                        size={14}
-                        color={COLORS.primary}
-                      />
-                      <Text style={styles.modalMemberPaid}>
-                        ₹{selectedMember.totalPaid?.toFixed(2)} paid
-                      </Text>
-                    </View>
-                  </View>
-                  <TouchableOpacity
-                    onPress={closeModal}
-                    style={styles.closeBtn}
-                  >
-                    <Ionicons name="close" size={20} color={COLORS.gray} />
-                  </TouchableOpacity>
-                </View>
-
-                <View style={styles.modalDivider} />
-
-                {/* Actions */}
-                <View style={styles.modalActions}>
-                  <TouchableOpacity
-                    style={styles.actionBtn}
-                    onPress={handleShowExpenses}
-                    activeOpacity={0.8}
-                  >
-                    <View
-                      style={[
-                        styles.actionIcon,
-                        { backgroundColor: COLORS.primary + "15" },
-                      ]}
-                    >
-                      <Ionicons
-                        name="receipt-outline"
-                        size={22}
-                        color={COLORS.primary}
-                      />
-                    </View>
-                    <View style={styles.actionText}>
-                      <Text style={styles.actionTitle}>View Expenses</Text>
-                      <Text style={styles.actionSubtitle}>
-                        See all expenses paid by {selectedMember.name}
-                      </Text>
-                    </View>
-                    <Ionicons
-                      name="chevron-forward"
-                      size={18}
-                      color="#D0D0D0"
-                    />
-                  </TouchableOpacity>
-
-                  {isAdmin && selectedMember._id !== currentUser?.id && (
-                    <TouchableOpacity
-                      style={[styles.actionBtn, removing && { opacity: 0.6 }]}
-                      onPress={handleRemoveMember}
-                      disabled={removing}
-                      activeOpacity={0.8}
-                    >
-                      <View
-                        style={[
-                          styles.actionIcon,
-                          { backgroundColor: COLORS.danger + "15" },
-                        ]}
-                      >
-                        {removing ? (
-                          <ActivityIndicator
-                            size="small"
-                            color={COLORS.danger}
-                          />
-                        ) : (
-                          <Ionicons
-                            name="person-remove-outline"
-                            size={22}
-                            color={COLORS.danger}
-                          />
+                        {group?.createdBy?._id === selectedMember._id && (
+                          <View style={styles.adminBadgeFloating}>
+                            <Ionicons name="shield-checkmark" size={12} color="#FFF" />
+                          </View>
                         )}
                       </View>
-                      <View style={styles.actionText}>
-                        <Text
-                          style={[styles.actionTitle, { color: COLORS.danger }]}
-                        >
-                          Remove Member
-                        </Text>
-                        <Text style={styles.actionSubtitle}>
-                          Remove {selectedMember.name} from the group
-                        </Text>
+                      
+                      <View style={styles.modalTitleSection}>
+                        <Text style={styles.modalMemberName}>{selectedMember.name}</Text>
+                        <Text style={styles.modalMemberEmail}>{selectedMember.email}</Text>
                       </View>
-                      <Ionicons
-                        name="chevron-forward"
-                        size={18}
-                        color="#D0D0D0"
-                      />
-                    </TouchableOpacity>
-                  )}
-                </View>
+                    </View>
 
-                <TouchableOpacity
-                  style={styles.cancelBtn}
-                  onPress={closeModal}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.cancelBtnText}>Cancel</Text>
-                </TouchableOpacity>
-              </>
-            )}
-          </AnimatedView>
-        </View>
+                    {/* Stats Summary Card */}
+                    <View style={styles.modalStatsCard}>
+                      <View style={styles.modalStatItem}>
+                        <Text style={styles.modalStatLabel}>Total Contribution</Text>
+                        <Text style={styles.modalStatValue}>₹{selectedMember.totalPaid?.toFixed(2)}</Text>
+                      </View>
+                      <View style={styles.modalStatDivider} />
+                      <View style={styles.modalStatItem}>
+                        <Text style={styles.modalStatLabel}>Status</Text>
+                        <View style={styles.statusPill}>
+                          <View style={styles.statusDot} />
+                          <Text style={styles.statusText}>Active</Text>
+                        </View>
+                      </View>
+                    </View>
+
+                    {/* Actions Section */}
+                    <Text style={styles.modalSectionTitle}>Member Actions</Text>
+                    <View style={styles.modalActionsList}>
+                      <TouchableOpacity
+                        style={styles.actionCard}
+                        onPress={handleShowExpenses}
+                        activeOpacity={0.7}
+                      >
+                        <View style={[styles.actionIconBox, { backgroundColor: COLORS.primary + "15" }]}>
+                          <Ionicons name="receipt" size={22} color={COLORS.primary} />
+                        </View>
+                        <View style={styles.actionInfo}>
+                          <Text style={styles.actionCardTitle}>View Expenses</Text>
+                          <Text style={styles.actionCardSub}>Detailed payment history</Text>
+                        </View>
+                        <Ionicons name="chevron-forward" size={18} color="#C0C0C0" />
+                      </TouchableOpacity>
+
+                      {isAdmin && selectedMember._id !== currentUser?.id && (
+                        <TouchableOpacity
+                          style={[styles.actionCard, removing && { opacity: 0.6 }]}
+                          onPress={handleRemoveMember}
+                          disabled={removing}
+                          activeOpacity={0.7}
+                        >
+                          <View style={[styles.actionIconBox, { backgroundColor: COLORS.danger + "15" }]}>
+                            {removing ? (
+                              <ActivityIndicator size="small" color={COLORS.danger} />
+                            ) : (
+                              <Ionicons name="person-remove" size={22} color={COLORS.danger} />
+                            )}
+                          </View>
+                          <View style={styles.actionInfo}>
+                            <Text style={[styles.actionCardTitle, { color: COLORS.danger }]}>Remove Member</Text>
+                            <Text style={styles.actionCardSub}>Withdraw from group access</Text>
+                          </View>
+                          <Ionicons name="chevron-forward" size={18} color="#C0C0C0" />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+
+                    <TouchableOpacity
+                      style={styles.closeActionBtn}
+                      onPress={closeModal}
+                    >
+                      <Text style={styles.closeActionText}>Close Profile</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
+              </Animated.View>
+            </GestureDetector>
+          </View>
+        </GestureHandlerRootView>
       </Modal>
     </View>
   );
@@ -729,96 +736,196 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
 
-  // Modal Sheet
+  // FAB
+  fabContainer: { position: "absolute", right: 24 },
+  fab: {
+    height: 54,
+    borderRadius: 27,
+    backgroundColor: COLORS.primary,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 22,
+    gap: 10,
+    // Explicitly no shadow
+    shadowColor: "transparent",
+    elevation: 0,
+  },
+  fabLabel: {
+    color: "#FFF",
+    fontSize: 16,
+    fontWeight: "800",
+    letterSpacing: 0.3,
+  },
+
+  // Modal Sheet Enhancement
   modalOverlay: {
     flex: 1,
     justifyContent: "flex-end",
-    backgroundColor: "rgba(0,0,0,0.45)",
+    backgroundColor: "rgba(0,0,0,0.5)",
   },
   modalSheet: {
-    backgroundColor: COLORS.white,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
+    backgroundColor: "#FFF",
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
     paddingTop: 12,
-    paddingHorizontal: 20,
-    paddingBottom: 36,
+    paddingHorizontal: 24,
+    paddingBottom: 40,
   },
   modalHandle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: "#E0E0E0",
+    width: 36,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: "#EEE",
     alignSelf: "center",
-    marginBottom: 20,
+    marginBottom: 24,
   },
-
-  // Modal Member
-  modalMemberSection: {
-    flexDirection: "row",
+  modalHeader: {
     alignItems: "center",
-    marginBottom: 20,
+    marginBottom: 24,
+  },
+  modalAvatarContainer: {
+    position: "relative",
+    marginBottom: 16,
   },
   modalAvatar: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
-    backgroundColor: COLORS.primary + "20",
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: COLORS.primary + "15",
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 14,
   },
-  modalAvatarText: { color: COLORS.primary, fontWeight: "bold", fontSize: 20 },
-  modalMemberInfo: { flex: 1 },
+  modalAvatarText: {
+    fontSize: 32,
+    fontWeight: "800",
+    color: COLORS.primary,
+  },
+  adminBadgeFloating: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    backgroundColor: COLORS.primary,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 3,
+    borderColor: "#FFF",
+  },
+  modalTitleSection: {
+    alignItems: "center",
+  },
   modalMemberName: {
-    fontSize: 18,
-    fontWeight: "bold",
+    fontSize: 22,
+    fontWeight: "800",
     color: COLORS.dark,
-    marginBottom: 2,
+    marginBottom: 4,
   },
-  modalMemberEmail: { fontSize: 13, color: COLORS.gray, marginBottom: 4 },
-  modalPaidRow: { flexDirection: "row", alignItems: "center", gap: 5 },
-  modalMemberPaid: { fontSize: 13, color: COLORS.primary, fontWeight: "600" },
-  closeBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#F5F5F5",
+  modalMemberEmail: {
+    fontSize: 14,
+    color: COLORS.gray,
+  },
+  modalStatsCard: {
+    flexDirection: "row",
+    backgroundColor: "#F8F9FA",
+    borderRadius: 20,
+    padding: 18,
+    marginBottom: 28,
+  },
+  modalStatItem: {
+    flex: 1,
     alignItems: "center",
-    justifyContent: "center",
   },
-  modalDivider: { height: 1, backgroundColor: "#F0F0F0", marginBottom: 16 },
-
-  // Actions
-  modalActions: { gap: 4, marginBottom: 16 },
-  actionBtn: {
+  modalStatLabel: {
+    fontSize: 11,
+    color: COLORS.gray,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    marginBottom: 6,
+  },
+  modalStatValue: {
+    fontSize: 17,
+    fontWeight: "800",
+    color: COLORS.primary,
+  },
+  modalStatDivider: {
+    width: 1,
+    height: "100%",
+    backgroundColor: "#E0E0E0",
+  },
+  statusPill: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 12,
-    borderRadius: 14,
-    gap: 14,
+    gap: 6,
+    backgroundColor: "#E1F9F1",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
-  actionIcon: {
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#10B981",
+  },
+  statusText: {
+    fontSize: 12,
+    color: "#059669",
+    fontWeight: "700",
+  },
+  modalSectionTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: COLORS.gray,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 12,
+  },
+  modalActionsList: {
+    gap: 12,
+    marginBottom: 32,
+  },
+  actionCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFF",
+    borderWidth: 1.5,
+    borderColor: "#F0F0F0",
+    borderRadius: 18,
+    padding: 14,
+  },
+  actionIconBox: {
     width: 48,
     height: 48,
     borderRadius: 14,
-    alignItems: "center",
     justifyContent: "center",
-  },
-  actionText: { flex: 1 },
-  actionTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: COLORS.dark,
-    marginBottom: 2,
-  },
-  actionSubtitle: { fontSize: 13, color: COLORS.gray },
-
-  cancelBtn: {
-    backgroundColor: "#F5F5F5",
-    paddingVertical: 16,
-    borderRadius: 16,
     alignItems: "center",
-    marginTop: 4,
+    marginRight: 16,
   },
-  cancelBtnText: { fontSize: 16, fontWeight: "600", color: COLORS.gray },
+  actionInfo: {
+    flex: 1,
+  },
+  actionCardTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: COLORS.dark,
+  },
+  actionCardSub: {
+    fontSize: 12,
+    color: COLORS.gray,
+    marginTop: 2,
+  },
+  closeActionBtn: {
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: "#F4F5FA",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  closeActionText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: COLORS.gray,
+  },
 });
