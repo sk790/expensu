@@ -1,52 +1,67 @@
-import React, { useState, useEffect, useCallback } from "react";
-import {
-  View,
-  Text,
-  FlatList,
-  TouchableOpacity,
-  StyleSheet,
-  RefreshControl,
-  Alert,
-} from "react-native";
-import Icon from "react-native-vector-icons/MaterialIcons";
+import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
+import * as Haptics from "expo-haptics";
+import React, { useCallback, useState } from "react";
+import {
+    ActivityIndicator,
+    FlatList,
+    RefreshControl,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from "react-native";
+import Animated, { FadeInDown, Layout, ZoomIn } from "react-native-reanimated";
+import AnimatedView from "../../components/AnimatedView";
+import CustomAlert from "../../components/CustomAlert";
+import GroupCard from "../../components/GroupCard";
+import { useAuth } from "../../context/AuthContext";
+import { useAlert } from "../../hooks/useAlert";
 import { groupService } from "../../services/authService";
 import { COLORS } from "../../utils/constants";
-import GroupCard from "../../components/GroupCard";
-import LoadingSpinner from "../../components/LoadingSpinner";
-import { useAuth } from "../../context/AuthContext";
 
 export default function GroupsListScreen({ navigation }) {
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const { logout } = useAuth();
+  const { alertProps, showAlert } = useAlert();
 
   const fetchGroups = async () => {
     try {
       const response = await groupService.getUserGroups();
       setGroups(response.data);
     } catch (error) {
-      Alert.alert("Error", "Failed to fetch groups");
+      showAlert({
+        type: "error",
+        title: "Error",
+        message: "Failed to fetch groups",
+      });
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   };
 
-  useEffect(() => {
+  React.useEffect(() => {
     navigation.setOptions({
       headerRight: () => (
         <TouchableOpacity
           style={styles.headerButton}
           onPress={() => {
-            Alert.alert("Logout", "Are you sure you want to logout?", [
-              { text: "Cancel", style: "cancel" },
-              { text: "Logout", onPress: logout, style: "destructive" },
-            ]);
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            showAlert({
+              type: "confirm",
+              title: "Logout",
+              message: "Are you sure you want to logout?",
+              buttons: [
+                { text: "Cancel", style: "cancel" },
+                { text: "Logout", style: "destructive", onPress: logout },
+              ],
+            });
           }}
         >
-          <Icon name="logout" size={24} color={COLORS.primary} />
+          <Ionicons name="log-out-outline" size={24} color={COLORS.danger} />
         </TouchableOpacity>
       ),
     });
@@ -55,7 +70,7 @@ export default function GroupsListScreen({ navigation }) {
   useFocusEffect(
     useCallback(() => {
       fetchGroups();
-    }, [])
+    }, []),
   );
 
   const onRefresh = () => {
@@ -64,90 +79,134 @@ export default function GroupsListScreen({ navigation }) {
   };
 
   if (loading) {
-    return <LoadingSpinner />;
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+      </View>
+    );
   }
 
   return (
     <View style={styles.container}>
+      <CustomAlert {...alertProps} />
       <FlatList
         data={groups}
         keyExtractor={(item) => item._id}
-        renderItem={({ item }) => (
-          <GroupCard
-            group={item}
-            onPress={() =>
-              // navigation.navigate("GroupDetails", { groupId: item._id })
-              navigation.navigate("GroupDetails", { groupId: item._id })
-            }
-          />
-        )}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={
+          groups.length === 0 ? styles.emptyList : styles.listContent
         }
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[COLORS.primary]}
+            tintColor={COLORS.primary}
+          />
+        }
+        renderItem={({ item, index }) => (
+          <AnimatedView
+            entering={FadeInDown.duration(350).delay(index * 60)}
+            layout={Layout.springify()}
+          >
+            <GroupCard
+              group={item}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                navigation.navigate("GroupDetails", { groupId: item._id });
+              }}
+            />
+          </AnimatedView>
+        )}
         ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Icon name="group" size={80} color={COLORS.gray} />
+          <AnimatedView
+            entering={FadeInDown.duration(500)}
+            style={styles.emptyContainer}
+          >
+            <View style={styles.emptyIconCircle}>
+              <Ionicons
+                name="people-outline"
+                size={56}
+                color={COLORS.primary}
+              />
+            </View>
             <Text style={styles.emptyText}>No groups yet</Text>
             <Text style={styles.emptySubtext}>
-              Create a group to get started
+              Tap + to create your first group and start splitting expenses
             </Text>
-          </View>
+          </AnimatedView>
         }
-        contentContainerStyle={groups.length === 0 ? styles.emptyList : null}
       />
 
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => navigation.navigate("CreateGroup")}
+      <AnimatedView
+        entering={ZoomIn.duration(400).delay(300)}
+        style={styles.fabContainer}
       >
-        <Icon name="add" size={30} color={COLORS.white} />
-      </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.fab}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            navigation.navigate("CreateGroup");
+          }}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="add" size={30} color={COLORS.white} />
+        </TouchableOpacity>
+      </AnimatedView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  container: { flex: 1, backgroundColor: "#F8F9FA" },
+  loadingContainer: {
     flex: 1,
-    backgroundColor: COLORS.light,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#F8F9FA",
   },
-  headerButton: {
-    marginRight: 15,
-  },
+  listContent: { padding: 16, paddingBottom: 100 },
+  headerButton: { marginRight: 16 },
+  emptyList: { flexGrow: 1, justifyContent: "center" },
   emptyContainer: {
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 50,
+    paddingVertical: 60,
+    paddingHorizontal: 40,
   },
-  emptyList: {
-    flexGrow: 1,
+  emptyIconCircle: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: COLORS.primary + "15",
+    alignItems: "center",
     justifyContent: "center",
+    marginBottom: 20,
   },
   emptyText: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: "bold",
     color: COLORS.dark,
-    marginTop: 20,
+    marginBottom: 10,
   },
   emptySubtext: {
-    fontSize: 16,
+    fontSize: 15,
     color: COLORS.gray,
-    marginTop: 5,
+    textAlign: "center",
+    lineHeight: 22,
   },
+  fabContainer: { position: "absolute", right: 20, bottom: 30 },
   fab: {
-    position: "absolute",
-    right: 20,
-    bottom: 20,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     backgroundColor: COLORS.primary,
     justifyContent: "center",
     alignItems: "center",
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
     elevation: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
   },
 });

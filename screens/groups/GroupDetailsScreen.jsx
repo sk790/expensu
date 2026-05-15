@@ -1,18 +1,27 @@
+import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
+import * as Haptics from "expo-haptics";
 import React, { useCallback, useLayoutEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   ScrollView,
-  Share,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
-import Icon from "react-native-vector-icons/MaterialIcons";
+import Animated, {
+  FadeInDown,
+  FadeInUp,
+  Layout,
+  ZoomIn,
+} from "react-native-reanimated";
+import AnimatedView from "../../components/AnimatedView";
 import ExpenseCard from "../../components/ExpenseCard";
 import GroupSummaryCard from "../../components/GroupSummaryCard";
 import { groupService } from "../../services/authService";
@@ -23,6 +32,7 @@ export default function GroupDetailScreen({ route, navigation }) {
   const [group, setGroup] = useState();
   const [expenses, setExpenses] = useState([]);
   const [balances, setBalances] = useState([]);
+  const [payments, setPayments] = useState([]);
   const [activeTab, setActiveTab] = useState("expenses");
   const [inviteLink, setInviteLink] = useState("");
   const [loading, setLoading] = useState(true);
@@ -32,6 +42,7 @@ export default function GroupDetailScreen({ route, navigation }) {
   const [settling, setSettling] = useState(false);
 
   const openSettleModal = (data) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSettleData(data);
     setCustomSettleAmount(data.amount.toString());
     setSettleModalVisible(true);
@@ -39,28 +50,30 @@ export default function GroupDetailScreen({ route, navigation }) {
 
   const handleSettleUp = async () => {
     if (!customSettleAmount || isNaN(customSettleAmount)) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert("Error", "Please enter a valid amount");
       return;
     }
 
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setSettling(true);
     try {
-      // NOTE: Using addExpense to record "payment/settlement".
-      // Assuming 'splitBetween' target is the person receiving money.
-      await groupService.addExpense(
+      await groupService.settleUp(
         groupId,
+        settleData.toUser.userId,
         parseFloat(customSettleAmount),
-        [settleData.toUser.userId], // Split with the person being paid
-        `Settlement to ${settleData.toUser?.name || "Member"}`,
       );
 
       setSettleModalVisible(false);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert("Success", "Payment recorded successfully!");
       // Refresh data
       fetchExpenses();
       fetchBalances();
+      fetchPayments();
     } catch (error) {
       console.log(error);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert("Error", "Failed to record settlement");
     } finally {
       setSettling(false);
@@ -70,8 +83,6 @@ export default function GroupDetailScreen({ route, navigation }) {
   const fetchGroupDetails = async () => {
     try {
       const response = await groupService.getGroup(groupId);
-      // console.log(response, "red");
-
       setGroup(response.data);
       setInviteLink(response.inviteLink);
     } catch (error) {
@@ -95,18 +106,26 @@ export default function GroupDetailScreen({ route, navigation }) {
     try {
       const response = await groupService.getGroupBalances(groupId);
       setBalances(response.data.balances || []);
-      // console.log(response.data.balances,'fssf');
-
-      // setBalances(response.data.balances || []);
     } catch (error) {
       console.log("Failed to fetch balances:", error);
     }
   };
+
+  const fetchPayments = async () => {
+    try {
+      const response = await groupService.getGroupSettlements(groupId);
+      setPayments(response.data || []);
+    } catch (error) {
+      console.log("Failed to fetch payments:", error);
+    }
+  };
+
   useFocusEffect(
     useCallback(() => {
       fetchGroupDetails();
       fetchExpenses();
       fetchBalances();
+      fetchPayments();
     }, [groupId]),
   );
 
@@ -115,42 +134,12 @@ export default function GroupDetailScreen({ route, navigation }) {
       headerTitle: group?.name || "Group Details",
     });
   }, [navigation, group?.name]);
-  const shareInviteLink = async () => {
-    try {
-      await Share.share({
-        message: `Join my group "${group.name}" on ExpenseSplitter!\n\n${inviteLink}`,
-        title: `Join ${group.name}`,
-      });
-    } catch (error) {
-      console.error(error);
+
+  const switchTab = (tab) => {
+    if (activeTab !== tab) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      setActiveTab(tab);
     }
-  };
-
-  const copyInviteLink = () => {
-    Alert.alert("Copied!", "Invite link copied to clipboard");
-  };
-
-  const regenerateInviteCode = async () => {
-    Alert.alert(
-      "Regenerate Invite Link",
-      "This will invalidate the old invite link. Are you sure?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Regenerate",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              const response = await groupService.regenerateInviteCode(groupId);
-              setInviteLink(response.inviteLink);
-              Alert.alert("Success", "New invite link generated");
-            } catch (error) {
-              Alert.alert("Error", "Failed to regenerate invite link");
-            }
-          },
-        },
-      ],
-    );
   };
 
   if (loading) {
@@ -163,244 +152,362 @@ export default function GroupDetailScreen({ route, navigation }) {
 
   return (
     <View style={styles.containerWrapper}>
-      <ScrollView style={styles.container}>
-        <GroupSummaryCard
-          group={group}
-          totalExpenses={expenses.reduce(
-            (sum, expense) => sum + (expense.amount || 0),
-            0,
-          )}
-          onAddMember={() =>
-            navigation.navigate("AddMember", {
-              groupId: groupId,
-              currentMembers: group?.members || [],
-            })
-          }
-          onPress={() =>
-            navigation.navigate("GroupMembers", {
-              groupId: groupId,
-              group: group,
-              expenses: expenses,
-            })
-          }
-        />
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        style={styles.container}
+        contentContainerStyle={styles.scrollContent}
+      >
+        <AnimatedView entering={FadeInDown.duration(400).delay(100)}>
+          <GroupSummaryCard
+            group={group}
+            totalExpenses={expenses.reduce(
+              (sum, expense) => sum + (expense.amount || 0),
+              0,
+            )}
+            onAddMember={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              navigation.navigate("AddMember", {
+                groupId: groupId,
+                currentMembers: group?.members || [],
+              });
+            }}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              navigation.navigate("GroupMembers", {
+                groupId: groupId,
+                group: group,
+                expenses: expenses,
+              });
+            }}
+          />
+        </AnimatedView>
 
-        {/* <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Invite Link</Text>
-          <View style={styles.inviteContainer}>
-            <Text style={styles.inviteLink} numberOfLines={1}>
-              {inviteLink}
-            </Text>
-          </View>
-
-          <View style={styles.buttonRow}>
+        <AnimatedView
+          entering={FadeInDown.duration(400).delay(200)}
+          style={styles.tabContainer}
+        >
+          {["expenses", "balances", "payments"].map((tab) => (
             <TouchableOpacity
-              style={[styles.button, styles.buttonSecondary]}
-              onPress={copyInviteLink}
+              key={tab}
+              style={styles.tabButton}
+              onPress={() => switchTab(tab)}
+              activeOpacity={0.8}
             >
-              <Text style={styles.buttonSecondaryText}>Copy Link</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.button, styles.buttonPrimary]}
-              onPress={shareInviteLink}
-            >
-              <Text style={styles.buttonText}>Share Link</Text>
-            </TouchableOpacity>
-          </View>
-
-          {group?.createdBy?._id === group?.members[0]?._id && (
-            <TouchableOpacity
-              style={[styles.button, styles.buttonDanger]}
-              onPress={regenerateInviteCode}
-            >
-              <Text style={styles.buttonText}>Regenerate Invite Link</Text>
-            </TouchableOpacity>
-          )}
-        </View> */}
-
-        <View style={styles.tabContainer}>
-          <TouchableOpacity
-            style={[
-              styles.tabButton,
-              activeTab === "expenses" && styles.activeTabButton,
-            ]}
-            onPress={() => setActiveTab("expenses")}
-          >
-            <Text
-              style={[
-                styles.tabText,
-                activeTab === "expenses" && styles.activeTabText,
-              ]}
-            >
-              Expenses
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.tabButton,
-              activeTab === "balances" && styles.activeTabButton,
-            ]}
-            onPress={() => setActiveTab("balances")}
-          >
-            <Text
-              style={[
-                styles.tabText,
-                activeTab === "balances" && styles.activeTabText,
-              ]}
-            >
-              Balances
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {activeTab === "expenses" ? (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Expenses</Text>
-            {expenses.length === 0 ? (
-              <View style={styles.emptyExpenses}>
-                <Icon name="receipt" size={40} color={COLORS.gray} />
-                <Text style={styles.emptyExpensesText}>No expenses yet</Text>
-              </View>
-            ) : (
-              expenses?.map((expense) => (
-                <ExpenseCard
-                  key={expense._id}
-                  expense={expense}
-                  onPress={() =>
-                    navigation.navigate("ExpenseDetail", {
-                      expense: expense,
-                      groupId: groupId,
-                    })
-                  }
+              {activeTab === tab && (
+                <AnimatedView
+                  layout={Layout.springify()}
+                  style={styles.activeTabBg}
                 />
-              ))
-            )}
-          </View>
-        ) : (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Balances</Text>
-            {balances.flatMap((user) =>
-              (user.owesTo || []).map((debt) => ({
-                from: user.name,
-                to:
-                  balances.find((b) => b.userId === debt.paidBy)?.name ||
-                  "Unknown",
-                amount: debt.amount,
-              })),
-            ).length === 0 ? (
-              <View style={styles.emptyExpenses}>
-                <Icon name="check-circle" size={40} color={COLORS.success} />
-                <Text style={styles.emptyExpensesText}>All settled up!</Text>
-              </View>
-            ) : (
-              <View style={styles.balancesList}>
-                {balances.flatMap((user) =>
-                  (user.owesTo || []).map((debt, index) => {
-                    const toUser = balances.find(
-                      (b) =>
-                        b.userId === (debt.paidBy || debt.userId || debt.to) ||
-                        b.email === debt.email,
-                    );
+              )}
+              <Text
+                style={[
+                  styles.tabText,
+                  activeTab === tab && styles.activeTabText,
+                ]}
+              >
+                {tab.charAt(0).toUpperCase() + tab.slice(1)}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </AnimatedView>
 
-                    return (
-                      <View
-                        key={`${user.userId}-${index}`}
-                        style={styles.balanceCard}
-                      >
-                        <View style={styles.balanceInfo}>
-                          <Text style={styles.balanceText}>
-                            <Text style={styles.balanceName}>{user.name}</Text>
-                            <Text style={styles.balanceAction}> will pay </Text>
-                            <Text style={styles.balanceName}>
-                              {toUser?.name || "Member"}
-                            </Text>
-                          </Text>
-                          <Text style={styles.balanceAmount}>
-                            ₹{debt.amount.toFixed(2)}
-                          </Text>
-                        </View>
-                        <TouchableOpacity
-                          style={styles.settleButton}
-                          onPress={() =>
-                            openSettleModal({
-                              fromUser: user,
-                              toUser: toUser,
-                              amount: debt.amount,
-                            })
-                          }
-                        >
-                          <Text style={styles.settleButtonText}>Settle Up</Text>
-                        </TouchableOpacity>
-                      </View>
-                    );
-                  }),
-                )}
+        <AnimatedView entering={FadeInUp.duration(500).delay(300)}>
+          {activeTab === "expenses" ? (
+            <View style={styles.section}>
+              <View style={styles.sectionHeaderRow}>
+                <Text style={styles.sectionTitle}>Recent Expenses</Text>
+                <Text style={styles.sectionCount}>{expenses.length} total</Text>
               </View>
-            )}
-          </View>
-        )}
+              {expenses.length === 0 ? (
+                <View style={styles.emptyContainer}>
+                  <View style={styles.emptyIconCircle}>
+                    <Ionicons
+                      name="receipt-outline"
+                      size={40}
+                      color={COLORS.primary}
+                    />
+                  </View>
+                  <Text style={styles.emptyTitle}>No expenses yet</Text>
+                  <Text style={styles.emptySubtitle}>
+                    Tap the + button to add one
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.listContainer}>
+                  {expenses?.map((expense, index) => (
+                    <AnimatedView
+                      key={expense._id}
+                      entering={FadeInDown.duration(300).delay(index * 50)}
+                      layout={Layout.springify()}
+                    >
+                      <ExpenseCard
+                        expense={expense}
+                        onPress={() => {
+                          Haptics.impactAsync(
+                            Haptics.ImpactFeedbackStyle.Light,
+                          );
+                          navigation.navigate("ExpenseDetail", {
+                            expense: expense,
+                            groupId: groupId,
+                          });
+                        }}
+                      />
+                    </AnimatedView>
+                  ))}
+                </View>
+              )}
+            </View>
+          ) : activeTab === "balances" ? (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Current Balances</Text>
+              {balances.flatMap((user) =>
+                (user.owesTo || []).map((debt) => ({
+                  from: user.name,
+                  to:
+                    balances.find((b) => b.userId === debt.paidBy)?.name ||
+                    "Unknown",
+                  amount: debt.amount,
+                })),
+              ).length === 0 ? (
+                <View style={styles.emptyContainer}>
+                  <View
+                    style={[
+                      styles.emptyIconCircle,
+                      { backgroundColor: COLORS.success + "20" },
+                    ]}
+                  >
+                    <Ionicons
+                      name="checkmark-done-circle-outline"
+                      size={48}
+                      color={COLORS.success}
+                    />
+                  </View>
+                  <Text style={styles.emptyTitle}>All settled up!</Text>
+                  <Text style={styles.emptySubtitle}>
+                    No one owes anything in this group
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.balancesList}>
+                  {balances.flatMap((user) =>
+                    (user.owesTo || []).map((debt, index) => {
+                      const toUser = balances.find(
+                        (b) =>
+                          b.userId ===
+                            (debt.paidBy || debt.userId || debt.to) ||
+                          b.email === debt.email,
+                      );
+
+                      return (
+                        <AnimatedView
+                          entering={FadeInDown.duration(300).delay(index * 50)}
+                          layout={Layout.springify()}
+                          key={`${user.userId}-${index}`}
+                          style={styles.balanceCard}
+                        >
+                          <View style={styles.balanceInfo}>
+                            <View style={styles.balanceRow}>
+                              <Text style={styles.balanceName}>
+                                {user.name}
+                              </Text>
+                              <MaterialIcons
+                                name="arrow-right-alt"
+                                size={20}
+                                color={COLORS.gray}
+                                style={styles.balanceArrow}
+                              />
+                              <Text style={styles.balanceName}>
+                                {toUser?.name || "Member"}
+                              </Text>
+                            </View>
+                            <Text style={styles.balanceAmount}>
+                              ₹{debt.amount.toFixed(2)}
+                            </Text>
+                          </View>
+                          <TouchableOpacity
+                            style={styles.settleButton}
+                            activeOpacity={0.8}
+                            onPress={() =>
+                              openSettleModal({
+                                fromUser: user,
+                                toUser: toUser,
+                                amount: debt.amount,
+                              })
+                            }
+                          >
+                            <Text style={styles.settleButtonText}>
+                              Settle Up
+                            </Text>
+                          </TouchableOpacity>
+                        </AnimatedView>
+                      );
+                    }),
+                  )}
+                </View>
+              )}
+            </View>
+          ) : (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Payment History</Text>
+              {payments.length === 0 ? (
+                <View style={styles.emptyContainer}>
+                  <View style={styles.emptyIconCircle}>
+                    <Ionicons
+                      name="time-outline"
+                      size={40}
+                      color={COLORS.gray}
+                    />
+                  </View>
+                  <Text style={styles.emptyTitle}>No payments yet</Text>
+                  <Text style={styles.emptySubtitle}>
+                    Settlements will appear here
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.balancesList}>
+                  {payments.map((payment, index) => (
+                    <AnimatedView
+                      entering={FadeInDown.duration(300).delay(index * 50)}
+                      layout={Layout.springify()}
+                      key={index}
+                      style={styles.historyCard}
+                    >
+                      <View style={styles.historyIconWrapper}>
+                        <Ionicons
+                          name="swap-horizontal"
+                          size={20}
+                          color={COLORS.success}
+                        />
+                      </View>
+                      <View style={styles.balanceInfo}>
+                        <Text style={styles.historyText}>
+                          <Text style={styles.historyName}>
+                            {payment.paidBy?.name || "Member"}
+                          </Text>
+                          <Text style={styles.historyAction}> paid </Text>
+                          <Text style={styles.historyName}>
+                            {payment.paidTo?.name || "Member"}
+                          </Text>
+                        </Text>
+                        <Text style={styles.paymentDate}>
+                          {new Date(payment.createdAt).toLocaleDateString(
+                            undefined,
+                            { month: "short", day: "numeric", year: "numeric" },
+                          )}
+                        </Text>
+                      </View>
+                      <Text style={styles.historyAmount}>
+                        ₹{payment.amount.toFixed(2)}
+                      </Text>
+                    </AnimatedView>
+                  ))}
+                </View>
+              )}
+            </View>
+          )}
+        </AnimatedView>
+        <View style={{ height: 100 }} />
       </ScrollView>
 
-      <TouchableOpacity
-        style={styles.floatingButton}
-        onPress={() =>
-          navigation.navigate("AddExpense", {
-            groupId: groupId,
-            members: group?.members || [],
-          })
-        }
+      <AnimatedView
+        entering={ZoomIn.duration(400).delay(500)}
+        style={styles.floatingButtonContainer}
       >
-        <Icon name="add" size={28} color={COLORS.white} />
-        {/* <Text style={styles.floatingButtonText}>Expense</Text> */}
-      </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.floatingButton}
+          activeOpacity={0.8}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            navigation.navigate("AddExpense", {
+              groupId: groupId,
+              members: group?.members || [],
+            });
+          }}
+        >
+          <Ionicons name="add" size={32} color={COLORS.white} />
+        </TouchableOpacity>
+      </AnimatedView>
 
       <Modal
-        animationType="slide"
+        animationType="fade"
         transparent={true}
         visible={settleModalVisible}
         onRequestClose={() => setSettleModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Record Payment</Text>
-
-            {settleData && (
-              <Text style={styles.modalSubtitle}>
-                {settleData.fromUser.name} pays {settleData.toUser?.name}
-              </Text>
-            )}
-
-            <Text style={styles.inputLabel}>Amount to Settle</Text>
-            <TextInput
-              style={styles.modalInput}
-              value={customSettleAmount}
-              onChangeText={setCustomSettleAmount}
-              keyboardType="numeric"
-              placeholder="Enter amount"
-            />
-
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.modalBtn, styles.modalBtnCancel]}
-                onPress={() => setSettleModalVisible(false)}
-              >
-                <Text style={styles.modalBtnTextCancel}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalBtn, styles.modalBtnConfirm]}
-                onPress={handleSettleUp}
-                disabled={settling}
-              >
-                {settling ? (
-                  <ActivityIndicator color="#fff" size="small" />
-                ) : (
-                  <Text style={styles.modalBtnTextConfirm}>Settle</Text>
-                )}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.modalOverlay}
+        >
+          <TouchableOpacity
+            style={StyleSheet.absoluteFillObject}
+            activeOpacity={1}
+            onPress={() => setSettleModalVisible(false)}
+          />
+          <AnimatedView
+            entering={FadeInUp.duration(300)}
+            style={styles.modalContent}
+          >
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Record Payment</Text>
+              <TouchableOpacity onPress={() => setSettleModalVisible(false)}>
+                <Ionicons
+                  name="close-circle-outline"
+                  size={28}
+                  color={COLORS.gray}
+                />
               </TouchableOpacity>
             </View>
-          </View>
-        </View>
+
+            {settleData && (
+              <View style={styles.modalUsersRow}>
+                <View style={styles.modalUserAvatar}>
+                  <Text style={styles.modalUserAvatarText}>
+                    {settleData.fromUser.name.substring(0, 2).toUpperCase()}
+                  </Text>
+                </View>
+                <MaterialIcons
+                  name="arrow-forward"
+                  size={24}
+                  color={COLORS.primary}
+                  style={{ marginHorizontal: 12 }}
+                />
+                <View style={styles.modalUserAvatar}>
+                  <Text style={styles.modalUserAvatarText}>
+                    {settleData.toUser?.name.substring(0, 2).toUpperCase()}
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            <Text style={styles.inputLabel}>Amount Settled</Text>
+            <View style={styles.modalInputGroup}>
+              <Text style={styles.modalCurrency}>₹</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={customSettleAmount}
+                onChangeText={setCustomSettleAmount}
+                keyboardType="decimal-pad"
+                placeholder="0.00"
+                placeholderTextColor={COLORS.gray}
+                autoFocus
+              />
+            </View>
+
+            <TouchableOpacity
+              style={[styles.modalBtnConfirm, settling && { opacity: 0.7 }]}
+              onPress={handleSettleUp}
+              disabled={settling}
+            >
+              {settling ? (
+                <ActivityIndicator color={COLORS.white} />
+              ) : (
+                <Text style={styles.modalBtnTextConfirm}>
+                  Confirm Settlement
+                </Text>
+              )}
+            </TouchableOpacity>
+          </AnimatedView>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
@@ -409,293 +516,311 @@ export default function GroupDetailScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   containerWrapper: {
     flex: 1,
-    position: "relative",
-    backgroundColor: COLORS.white,
+    backgroundColor: "#F8F9FA",
   },
   container: {
     flex: 1,
-    backgroundColor: COLORS.white,
+  },
+  scrollContent: {
     padding: 20,
+    flexGrow: 1,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: COLORS.white,
+    backgroundColor: "#F8F9FA",
   },
   section: {
     marginBottom: 30,
   },
-  sectionHeader: {
+  sectionHeaderRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 10,
+    marginBottom: 16,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: "bold",
     color: COLORS.dark,
-    marginBottom: 0,
   },
-  buttonGroup: {
-    flexDirection: "row",
-    gap: 8,
-  },
-  addExpenseButton: {
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 6,
-  },
-  addExpenseButtonText: {
-    color: COLORS.white,
-    fontSize: 12,
-    fontWeight: "bold",
-  },
-  addMemberButton: {
-    backgroundColor: COLORS.secondary,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 6,
-  },
-  addMemberButtonText: {
-    color: COLORS.white,
-    fontSize: 12,
-    fontWeight: "bold",
-  },
-  settleButton: {
-    backgroundColor: COLORS.success,
-    paddingHorizontal: 8,
-    paddingVertical: 8,
-    borderRadius: 6,
-  },
-  settleButtonText: {
-    color: COLORS.white,
-    fontSize: 11,
-    fontWeight: "bold",
-  },
-  groupName: {
-    fontSize: 24,
-    fontWeight: "bold",
+  sectionCount: {
+    fontSize: 14,
     color: COLORS.primary,
-  },
-  memberItem: {
-    padding: 15,
-    backgroundColor: COLORS.light,
-    borderRadius: 8,
-    marginBottom: 10,
-  },
-  memberName: {
-    fontSize: 16,
     fontWeight: "600",
-    color: COLORS.dark,
   },
-  memberEmail: {
-    fontSize: 14,
-    color: COLORS.gray,
-    marginTop: 5,
+  listContainer: {
+    gap: 16,
   },
-  inviteContainer: {
-    padding: 15,
-    backgroundColor: COLORS.light,
-    borderRadius: 8,
-    marginBottom: 15,
-  },
-  inviteLink: {
-    fontSize: 14,
-    color: COLORS.dark,
-  },
-  buttonRow: {
-    flexDirection: "row",
-    gap: 10,
-    marginBottom: 10,
-  },
-  button: {
-    flex: 1,
-    padding: 15,
-    borderRadius: 8,
+  emptyContainer: {
     alignItems: "center",
-  },
-  buttonPrimary: {
-    backgroundColor: COLORS.primary,
-  },
-  buttonSecondary: {
+    justifyContent: "center",
+    paddingVertical: 40,
     backgroundColor: COLORS.white,
-    borderWidth: 1,
-    borderColor: COLORS.primary,
+    borderRadius: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 2,
   },
-  buttonDanger: {
-    backgroundColor: "#ff4444",
-  },
-  buttonText: {
-    color: COLORS.white,
-    fontSize: 16,
-    fontWeight: "bold",
-  },
-  buttonSecondaryText: {
-    color: COLORS.primary,
-    fontSize: 16,
-    fontWeight: "bold",
-  },
-  emptyExpenses: {
+  emptyIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: COLORS.primary + "15",
     alignItems: "center",
-    paddingVertical: 30,
+    justifyContent: "center",
+    marginBottom: 16,
   },
-  emptyExpensesText: {
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: COLORS.dark,
+    marginBottom: 8,
+  },
+  emptySubtitle: {
     fontSize: 14,
     color: COLORS.gray,
-    marginTop: 10,
   },
-  floatingButton: {
+  floatingButtonContainer: {
     position: "absolute",
     bottom: 30,
     right: 20,
+    zIndex: 10,
+  },
+  floatingButton: {
     backgroundColor: COLORS.primary,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     justifyContent: "center",
     alignItems: "center",
-    flexDirection: "row",
-    gap: 4,
-    paddingBottom: 3,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  floatingButtonText: {
-    color: COLORS.white,
-    fontSize: 10,
-    fontWeight: "bold",
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
   },
   tabContainer: {
     flexDirection: "row",
-    marginBottom: 20,
-    backgroundColor: COLORS.light,
+    marginBottom: 24,
+    backgroundColor: "#EEEEEE",
     borderRadius: 12,
     padding: 4,
+    marginTop: 8,
   },
   tabButton: {
     flex: 1,
     paddingVertical: 12,
     alignItems: "center",
-    borderRadius: 8,
+    justifyContent: "center",
+    position: "relative",
+    zIndex: 1,
   },
-  activeTabButton: {
+  activeTabBg: {
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: COLORS.white,
+    borderRadius: 10,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 2,
+    shadowRadius: 4,
     elevation: 2,
+    zIndex: -1,
   },
   tabText: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: "600",
     color: COLORS.gray,
   },
   activeTabText: {
-    color: COLORS.primary,
+    color: COLORS.dark,
     fontWeight: "bold",
   },
   balancesList: {
-    gap: 12,
+    gap: 16,
+    marginTop: 16,
   },
   balanceCard: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: COLORS.light,
+    backgroundColor: COLORS.white,
     padding: 16,
-    borderRadius: 12,
+    borderRadius: 16,
     borderLeftWidth: 4,
-    borderLeftColor: COLORS.secondary,
+    borderLeftColor: COLORS.danger,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
   balanceInfo: {
     flex: 1,
   },
-  balanceText: {
+  balanceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 6,
+  },
+  balanceArrow: {
+    marginHorizontal: 8,
+  },
+  balanceName: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: COLORS.dark,
+  },
+  balanceAmount: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: COLORS.danger,
+  },
+  settleButton: {
+    backgroundColor: COLORS.success + "20",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: COLORS.success + "40",
+  },
+  settleButtonText: {
+    color: COLORS.success,
+    fontSize: 13,
+    fontWeight: "bold",
+  },
+  historyCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.white,
+    padding: 16,
+    borderRadius: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  historyIconWrapper: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.success + "15",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 16,
+  },
+  historyText: {
     fontSize: 15,
     color: COLORS.dark,
   },
-  balanceName: {
-    fontWeight: "bold",
+  historyName: {
+    fontWeight: "600",
   },
-  balanceAction: {
+  historyAction: {
     color: COLORS.gray,
   },
-  balanceAmount: {
+  historyAmount: {
     fontSize: 16,
     fontWeight: "bold",
-    color: COLORS.primary,
+    color: COLORS.success,
+  },
+  paymentDate: {
+    fontSize: 13,
+    color: COLORS.gray,
+    marginTop: 4,
   },
   modalOverlay: {
     flex: 1,
-    // backgroundColor: "rgba(0,0,0,0.5)",
+    backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "flex-end",
   },
   modalContent: {
     backgroundColor: COLORS.white,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
-    minHeight: 300,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: Platform.OS === "ios" ? 40 : 24,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 24,
   },
   modalTitle: {
     fontSize: 20,
     fontWeight: "bold",
     color: COLORS.dark,
-    marginBottom: 5,
-    textAlign: "center",
   },
-  modalSubtitle: {
-    fontSize: 14,
-    color: COLORS.gray,
-    marginBottom: 20,
-    textAlign: "center",
+  modalUsersRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 24,
+    backgroundColor: COLORS.light,
+    padding: 16,
+    borderRadius: 12,
+  },
+  modalUserAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: COLORS.primary + "20",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalUserAvatarText: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: COLORS.primary,
   },
   inputLabel: {
     fontSize: 14,
     fontWeight: "600",
+    color: COLORS.gray,
+    marginBottom: 8,
+  },
+  modalInputGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1.5,
+    borderColor: COLORS.primary,
+    borderRadius: 12,
+    backgroundColor: COLORS.white,
+    marginBottom: 32,
+    overflow: "hidden",
+  },
+  modalCurrency: {
+    fontSize: 24,
+    fontWeight: "bold",
     color: COLORS.dark,
-    marginBottom: 5,
+    paddingLeft: 16,
   },
   modalInput: {
-    borderWidth: 1,
-    borderColor: COLORS.light,
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    marginBottom: 20,
-    backgroundColor: COLORS.light,
-  },
-  modalButtons: {
-    flexDirection: "row",
-    gap: 15,
-  },
-  modalBtn: {
     flex: 1,
-    padding: 15,
-    borderRadius: 8,
-    alignItems: "center",
-  },
-  modalBtnCancel: {
-    backgroundColor: COLORS.light,
-    borderWidth: 1,
-    borderColor: COLORS.gray,
+    padding: 16,
+    fontSize: 24,
+    fontWeight: "bold",
+    color: COLORS.dark,
   },
   modalBtnConfirm: {
     backgroundColor: COLORS.primary,
-  },
-  modalBtnTextCancel: {
-    color: COLORS.dark,
-    fontWeight: "bold",
+    paddingVertical: 18,
+    borderRadius: 16,
+    alignItems: "center",
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
   },
   modalBtnTextConfirm: {
     color: COLORS.white,
+    fontSize: 18,
     fontWeight: "bold",
   },
 });

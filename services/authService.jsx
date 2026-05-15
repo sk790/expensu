@@ -58,6 +58,8 @@ export const groupService = {
       splitBetween,
       description,
     });
+    console.log(response);
+    
     return response.data;
   },
 
@@ -95,6 +97,18 @@ export const groupService = {
     const response = await api.delete(`/groups/${groupId}/members`, {
       data: { memberId },
     });
+    return response.data;
+  },
+  async settleUp(groupId, toUserId, amount) {
+    const response = await api.post(`/groups/${groupId}/settle`, {
+      toUserId,
+      amount,
+    });
+    return response.data;
+  },
+
+  async getGroupSettlements(groupId) {
+    const response = await api.get(`/groups/${groupId}/payments`);
     return response.data;
   },
 };

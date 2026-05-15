@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   ScrollView,
   StyleSheet,
   Switch,
@@ -9,12 +8,26 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { groupService } from "../../services/authService";
 import { COLORS } from "../../utils/constants";
+import Animated, { FadeInDown, FadeInUp, Layout, ZoomIn } from "react-native-reanimated";
+import AnimatedView from "../../components/AnimatedView";
+import * as Haptics from "expo-haptics";
+import { Ionicons, MaterialIcons } from "@expo/vector-icons";
+import CustomAlert from "../../components/CustomAlert";
+import { useAlert } from "../../hooks/useAlert";
+
+const getInitials = (name) => {
+  if (!name) return "?";
+  return name.substring(0, 2).toUpperCase();
+};
 
 export default function AddExpenseScreen({ route, navigation }) {
   const { groupId, members, isEditing, expenseData } = route.params;
+  const { alertProps, showAlert } = useAlert();
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
   const [selectedMembers, setSelectedMembers] = useState(
@@ -23,17 +36,13 @@ export default function AddExpenseScreen({ route, navigation }) {
   const [splitType, setSplitType] = useState("equal");
   const [customAmounts, setCustomAmounts] = useState({});
   const [loading, setLoading] = useState(false);
+  const [focusedInput, setFocusedInput] = useState(null);
 
   useEffect(() => {
-    // Pre-fill form data if editing
     if (isEditing && expenseData) {
       setAmount(expenseData.amount.toString());
       setDescription(expenseData.description);
 
-      // Check if it was a custom split
-      // This depends on how backend returns splitBetween.
-      // Assuming for now if it's editing, we default to equal or check data structure.
-      // If expenseData.splitBetween is array of objects with amount, set custom.
       const isCustom = expenseData.splitBetween.some(
         (item) => typeof item === "object" && item.amount,
       );
@@ -50,7 +59,6 @@ export default function AddExpenseScreen({ route, navigation }) {
         setSelectedMembers(memberSelection);
         setCustomAmounts(amounts);
       } else {
-        // Equal split logic (existing)
         const memberSelection = members.reduce((acc, member) => {
           acc[member._id] = expenseData.splitBetween.includes(member._id);
           return acc;
@@ -58,7 +66,7 @@ export default function AddExpenseScreen({ route, navigation }) {
         setSelectedMembers(memberSelection);
       }
     }
-  }, [isEditing, expenseData]);
+  }, [isEditing, expenseData, members]);
 
   const handleCustomAmountChange = (memberId, value) => {
     setCustomAmounts((prev) => ({
@@ -67,9 +75,17 @@ export default function AddExpenseScreen({ route, navigation }) {
     }));
   };
 
+  const handleSplitTypeChange = (type) => {
+    if (splitType !== type) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      setSplitType(type);
+    }
+  };
+
   const handleSubmit = async () => {
     if (!amount || !description.trim()) {
-      Alert.alert("Error", "Please fill in all fields");
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      showAlert({ type: "error", title: "Missing Details", message: "Please fill in all fields before saving." });
       return;
     }
 
@@ -77,14 +93,14 @@ export default function AddExpenseScreen({ route, navigation }) {
       (id) => selectedMembers[id],
     );
     if (selectedIds.length === 0) {
-      Alert.alert("Error", "Please select at least one member to split with");
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      showAlert({ type: "error", title: "No Members Selected", message: "Please select at least one member to split with." });
       return;
     }
 
-    let finalSplitData = selectedIds; // Default equal split (sending IDs)
+    let finalSplitData = selectedIds;
 
     if (splitType === "custom") {
-      // Validate Custom Amounts
       const totalEntered = selectedIds.reduce(
         (sum, id) => sum + (parseFloat(customAmounts[id]) || 0),
         0,
@@ -92,24 +108,21 @@ export default function AddExpenseScreen({ route, navigation }) {
       const targetAmount = parseFloat(amount);
 
       if (Math.abs(totalEntered - targetAmount) > 0.01) {
-        Alert.alert(
-          "Error",
-          `Total split amount (₹${totalEntered.toFixed(2)}) must equal expense amount (₹${targetAmount.toFixed(2)})`,
-        );
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        showAlert({ type: "warning", title: "Amount Mismatch", message: `Total split (₹${totalEntered.toFixed(2)}) must equal the expense amount (₹${targetAmount.toFixed(2)}).` });
         return;
       }
 
-      // Construct payload for custom split
       finalSplitData = selectedIds.map((id) => ({
         userId: id,
         amount: parseFloat(customAmounts[id]) || 0,
       }));
     }
 
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setLoading(true);
     try {
       if (isEditing && expenseData) {
-        // Edit existing expense
         await groupService.editExpense(
           groupId,
           expenseData.id,
@@ -117,32 +130,32 @@ export default function AddExpenseScreen({ route, navigation }) {
           finalSplitData,
           description.trim(),
         );
-        Alert.alert("Success", "Expense updated successfully", [
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        showAlert({ type: "success", title: "Expense Updated!", message: "Your expense has been updated successfully.", buttons: [
           { text: "OK", onPress: () => navigation.goBack() },
-        ]);
+        ]});
       } else {
-        // Add new expense
         await groupService.addExpense(
           groupId,
           parseFloat(amount),
           finalSplitData,
           description.trim(),
         );
-        Alert.alert("Success", "Expense added successfully", [
-          { text: "OK", onPress: () => navigation.goBack() },
-        ]);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        showAlert({ type: "success", title: "Expense Added!", message: "The expense has been added and split successfully.", buttons: [
+          { text: "Great!", onPress: () => navigation.goBack() },
+        ]});
       }
     } catch (error) {
-      Alert.alert(
-        "Error",
-        error.response?.data?.message || "Failed to save expense",
-      );
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      showAlert({ type: "error", title: "Failed to Save", message: error.response?.data?.message || "Something went wrong. Please try again." });
     } finally {
       setLoading(false);
     }
   };
 
   const toggleMember = (memberId) => {
+    Haptics.selectionAsync();
     setSelectedMembers((prev) => ({
       ...prev,
       [memberId]: !prev[memberId],
@@ -151,7 +164,6 @@ export default function AddExpenseScreen({ route, navigation }) {
 
   const selectedCount = Object.values(selectedMembers).filter(Boolean).length;
 
-  // Validation info for UI
   const currentTotal = Object.keys(selectedMembers)
     .filter((id) => selectedMembers[id])
     .reduce((sum, id) => sum + (parseFloat(customAmounts[id]) || 0), 0);
@@ -171,267 +183,494 @@ export default function AddExpenseScreen({ route, navigation }) {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <View style={styles.form}>
-        <Text style={styles.label}>Amount</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Enter amount"
-          value={amount}
-          onChangeText={setAmount}
-          keyboardType="numeric"
-          editable={!loading}
-        />
-
-        <Text style={styles.label}>Description</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="What's this expense for?"
-          value={description}
-          onChangeText={setDescription}
-          editable={!loading}
-        />
-
-        <Text style={styles.label}>Split Type</Text>
-        <View style={styles.splitTypeContainer}>
-          <TouchableOpacity
-            style={[
-              styles.splitTypeButton,
-              splitType === "equal" && styles.activeSplitType,
-            ]}
-            onPress={() => setSplitType("equal")}
-          >
-            <Text
-              style={[
-                styles.splitTypeText,
-                splitType === "equal" && styles.activeSplitTypeText,
-              ]}
-            >
-              Equally
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.splitTypeButton,
-              splitType === "custom" && styles.activeSplitType,
-            ]}
-            onPress={() => setSplitType("custom")}
-          >
-            <Text
-              style={[
-                styles.splitTypeText,
-                splitType === "custom" && styles.activeSplitTypeText,
-              ]}
-            >
-              Custom
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        <Text style={styles.label}>Split Between</Text>
-        <View style={styles.membersContainer}>
-          {members.map((member) => (
-            <View key={member._id} style={styles.memberRow}>
-              <View style={styles.memberInfo}>
-                <Text style={styles.memberName}>{member.name}</Text>
-                {splitType === "custom" && selectedMembers[member._id] && (
-                  <TextInput
-                    style={styles.customAmountInput}
-                    placeholder="0"
-                    keyboardType="numeric"
-                    value={customAmounts[member._id] || ""}
-                    onChangeText={(val) =>
-                      handleCustomAmountChange(member._id, val)
-                    }
-                  />
-                )}
-              </View>
-              <Switch
-                value={selectedMembers[member._id]}
-                onValueChange={() => toggleMember(member._id)}
-                disabled={loading}
-                trackColor={{ false: COLORS.gray, true: COLORS.primary }}
-              />
-            </View>
-          ))}
-        </View>
-
-        {amount && selectedCount > 0 && splitType === "equal" && (
-          <View style={styles.splitInfo}>
-            <Text style={styles.splitText}>
-              Each person pays: ₹{perPersonAmount}
-            </Text>
+    <KeyboardAvoidingView 
+      style={styles.container} 
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 20}
+    >
+      <CustomAlert {...alertProps} />
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+        
+        {/* Header / Title Area */}
+        <AnimatedView entering={FadeInDown.duration(400).delay(100)} style={styles.headerContainer}>
+          <View style={styles.iconCircle}>
+            <MaterialIcons name="receipt-long" size={32} color={COLORS.primary} />
           </View>
-        )}
-
-        {amount && splitType === "custom" && (
-          <View
-            style={[
-              styles.splitInfo,
-              Math.abs(remaining) > 0.01
-                ? styles.splitError
-                : styles.splitSuccess,
-            ]}
-          >
-            <Text style={styles.splitText}>
-              Total: ₹{currentTotal.toFixed(2)} / ₹
-              {parseFloat(amount).toFixed(2)}
-            </Text>
-            <Text style={styles.subText}>
-              {Math.abs(remaining) < 0.01
-                ? "Perfect match!"
-                : `${remaining > 0 ? "Remaining" : "Exceeded"}: ₹${Math.abs(remaining).toFixed(2)}`}
-            </Text>
-          </View>
-        )}
-
-        <TouchableOpacity
-          style={[styles.button, loading && styles.buttonDisabled]}
-          onPress={handleSubmit}
-          disabled={loading}
-        >
-          <Text style={styles.buttonText}>
-            {loading
-              ? "Saving..."
-              : isEditing
-                ? "Update Expense"
-                : "Add Expense"}
+          <Text style={styles.headerTitle}>
+            {isEditing ? "Edit Expense" : "New Expense"}
           </Text>
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
+          <Text style={styles.headerSubtitle}>
+            Enter the details below to track your spending
+          </Text>
+        </AnimatedView>
+
+        {/* Input Form */}
+        <AnimatedView entering={FadeInDown.duration(400).delay(200)} style={styles.formCard}>
+          <View style={[styles.inputGroup, focusedInput === 'amount' && styles.inputGroupFocused]}>
+            <View style={styles.currencySymbolContainer}>
+              <Text style={styles.currencySymbol}>₹</Text>
+            </View>
+            <TextInput
+              style={styles.amountInput}
+              placeholder="0.00"
+              placeholderTextColor={COLORS.gray}
+              value={amount}
+              onChangeText={setAmount}
+              keyboardType="decimal-pad"
+              editable={!loading}
+              onFocus={() => setFocusedInput('amount')}
+              onBlur={() => setFocusedInput(null)}
+            />
+          </View>
+
+          <View style={[styles.inputGroup, focusedInput === 'desc' && styles.inputGroupFocused, { marginTop: 16 }]}>
+            <Ionicons name="create-outline" size={20} color={COLORS.gray} style={styles.inputIcon} />
+            <TextInput
+              style={styles.textInput}
+              placeholder="What was this for?"
+              placeholderTextColor={COLORS.gray}
+              value={description}
+              onChangeText={setDescription}
+              editable={!loading}
+              onFocus={() => setFocusedInput('desc')}
+              onBlur={() => setFocusedInput(null)}
+            />
+          </View>
+        </AnimatedView>
+
+        {/* Split Type Toggle */}
+        <AnimatedView entering={FadeInDown.duration(400).delay(300)}>
+          <Text style={styles.sectionLabel}>Split Method</Text>
+          <View style={styles.splitTypeContainer}>
+            <TouchableOpacity
+              style={styles.splitTypeButton}
+              onPress={() => handleSplitTypeChange("equal")}
+              activeOpacity={0.8}
+            >
+              {splitType === "equal" && (
+                <AnimatedView layout={Layout.springify()} style={styles.activeSplitBg} />
+              )}
+              <Text style={[styles.splitTypeText, splitType === "equal" && styles.activeSplitTypeText]}>
+                Equally
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={styles.splitTypeButton}
+              onPress={() => handleSplitTypeChange("custom")}
+              activeOpacity={0.8}
+            >
+              {splitType === "custom" && (
+                <AnimatedView layout={Layout.springify()} style={styles.activeSplitBg} />
+              )}
+              <Text style={[styles.splitTypeText, splitType === "custom" && styles.activeSplitTypeText]}>
+                Custom
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </AnimatedView>
+
+        {/* Members List */}
+        <AnimatedView entering={FadeInDown.duration(400).delay(400)}>
+          <View style={styles.membersHeaderRow}>
+            <Text style={styles.sectionLabel}>Split With</Text>
+            <Text style={styles.membersCount}>{selectedCount} selected</Text>
+          </View>
+          
+          <View style={styles.membersCard}>
+            {members.map((member, index) => (
+              <AnimatedView 
+                key={member._id} 
+                layout={Layout.springify()}
+                style={[
+                  styles.memberRow, 
+                  index !== members.length - 1 && styles.memberRowBorder
+                ]}
+              >
+                <View style={styles.memberInfo}>
+                  <View style={[styles.avatar, { backgroundColor: COLORS.primary + '20' }]}>
+                    <Text style={styles.avatarText}>{getInitials(member.name)}</Text>
+                  </View>
+                  <Text style={styles.memberName}>{member.name}</Text>
+                </View>
+
+                <View style={styles.memberAction}>
+                  {splitType === "custom" && selectedMembers[member._id] && (
+                    <AnimatedView entering={ZoomIn} style={styles.customAmountContainer}>
+                      <Text style={styles.customCurrency}>₹</Text>
+                      <TextInput
+                        style={styles.customAmountInput}
+                        placeholder="0"
+                        placeholderTextColor={COLORS.gray}
+                        keyboardType="decimal-pad"
+                        value={customAmounts[member._id] || ""}
+                        onChangeText={(val) => handleCustomAmountChange(member._id, val)}
+                      />
+                    </AnimatedView>
+                  )}
+                  <Switch
+                    value={selectedMembers[member._id]}
+                    onValueChange={() => toggleMember(member._id)}
+                    disabled={loading}
+                    trackColor={{ false: "#E0E0E0", true: COLORS.primary + '80' }}
+                    thumbColor={selectedMembers[member._id] ? COLORS.primary : "#f4f3f4"}
+                    ios_backgroundColor="#E0E0E0"
+                    style={styles.switch}
+                  />
+                </View>
+              </AnimatedView>
+            ))}
+          </View>
+        </AnimatedView>
+
+        {/* Summary Footer */}
+        <AnimatedView entering={FadeInUp.duration(500).delay(500)}>
+          {amount && selectedCount > 0 && splitType === "equal" && (
+            <View style={styles.summaryCard}>
+              <View style={styles.summaryIcon}>
+                <Ionicons name="pie-chart" size={24} color={COLORS.primary} />
+              </View>
+              <View style={styles.summaryTextContainer}>
+                <Text style={styles.summaryLabel}>Each person pays</Text>
+                <Text style={styles.summaryValue}>₹{perPersonAmount}</Text>
+              </View>
+            </View>
+          )}
+
+          {amount && splitType === "custom" && (
+            <View style={[styles.summaryCard, Math.abs(remaining) > 0.01 ? styles.summaryError : styles.summarySuccess]}>
+              <View style={styles.summaryIcon}>
+                <Ionicons 
+                  name={Math.abs(remaining) > 0.01 ? "alert-circle" : "checkmark-circle"} 
+                  size={24} 
+                  color={Math.abs(remaining) > 0.01 ? COLORS.danger : COLORS.success} 
+                />
+              </View>
+              <View style={styles.summaryTextContainer}>
+                <Text style={[styles.summaryLabel, { color: Math.abs(remaining) > 0.01 ? COLORS.danger : COLORS.success }]}>
+                  {Math.abs(remaining) < 0.01
+                    ? "Perfect match!"
+                    : `${remaining > 0 ? "Remaining" : "Exceeded"} amount`}
+                </Text>
+                <Text style={[styles.summaryValue, { color: Math.abs(remaining) > 0.01 ? COLORS.danger : COLORS.success }]}>
+                  {Math.abs(remaining) < 0.01 ? `Total: ₹${parseFloat(amount).toFixed(2)}` : `₹${Math.abs(remaining).toFixed(2)}`}
+                </Text>
+              </View>
+            </View>
+          )}
+
+          <TouchableOpacity
+            style={[styles.saveButton, loading && styles.saveButtonDisabled]}
+            onPress={handleSubmit}
+            disabled={loading}
+            activeOpacity={0.8}
+          >
+            {loading ? (
+              <ActivityIndicator color={COLORS.white} />
+            ) : (
+              <>
+                <Text style={styles.saveButtonText}>
+                  {isEditing ? "Update Expense" : "Save Expense"}
+                </Text>
+                <Ionicons name="arrow-forward" size={20} color={COLORS.white} />
+              </>
+            )}
+          </TouchableOpacity>
+        </AnimatedView>
+        <View style={{ height: 40 }} />
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.white,
+    backgroundColor: "#F8F9FA",
   },
   content: {
     padding: 20,
+    flexGrow: 1,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+    backgroundColor: "#F8F9FA",
+  },
+  headerContainer: {
+    alignItems: "center",
+    marginTop: 10,
+    marginBottom: 24,
+  },
+  iconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: COLORS.primary + '15',
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: COLORS.dark,
+    marginBottom: 8,
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    color: COLORS.gray,
+    textAlign: "center",
+  },
+  formCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  inputGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1.5,
+    borderColor: "#F0F0F0",
+    borderRadius: 12,
+    backgroundColor: "#FAFAFA",
+    overflow: 'hidden',
+  },
+  inputGroupFocused: {
+    borderColor: COLORS.primary,
     backgroundColor: COLORS.white,
   },
-  form: {
-    marginTop: 10,
+  currencySymbolContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    backgroundColor: "#F5F5F5",
+    borderRightWidth: 1,
+    borderRightColor: "#E0E0E0",
   },
-  label: {
+  currencySymbol: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: COLORS.dark,
+  },
+  amountInput: {
+    flex: 1,
+    fontSize: 24,
+    fontWeight: "bold",
+    color: COLORS.dark,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+  },
+  inputIcon: {
+    paddingHorizontal: 16,
+  },
+  textInput: {
+    flex: 1,
+    fontSize: 16,
+    color: COLORS.dark,
+    paddingVertical: 16,
+    paddingRight: 16,
+  },
+  sectionLabel: {
     fontSize: 16,
     fontWeight: "bold",
     color: COLORS.dark,
-    marginBottom: 10,
-    marginTop: 20,
+    marginBottom: 12,
+    marginLeft: 4,
   },
-  input: {
-    borderWidth: 1,
-    borderColor: COLORS.light,
-    borderRadius: 8,
-    padding: 15,
-    fontSize: 16,
-    backgroundColor: COLORS.light,
+  splitTypeContainer: {
+    flexDirection: "row",
+    backgroundColor: "#EEEEEE",
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 24,
   },
-  membersContainer: {
-    backgroundColor: COLORS.light,
-    borderRadius: 8,
-    padding: 10,
+  splitTypeButton: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    position: 'relative',
+    zIndex: 1,
+  },
+  activeSplitBg: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: COLORS.white,
+    borderRadius: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+    zIndex: -1,
+  },
+  splitTypeText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: COLORS.gray,
+  },
+  activeSplitTypeText: {
+    color: COLORS.dark,
+    fontWeight: "bold",
+  },
+  membersHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  membersCount: {
+    fontSize: 13,
+    color: COLORS.primary,
+    fontWeight: "600",
+    marginBottom: 12,
+    marginRight: 4,
+  },
+  membersCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 3,
+    marginBottom: 24,
   },
   memberRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 10,
-    paddingHorizontal: 5,
+    paddingVertical: 16,
+  },
+  memberRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: "#F0F0F0",
+  },
+  memberInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  avatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  avatarText: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: COLORS.primary,
   },
   memberName: {
     fontSize: 16,
     color: COLORS.dark,
+    fontWeight: "500",
   },
-  splitInfo: {
-    backgroundColor: COLORS.primary,
-    padding: 15,
-    borderRadius: 8,
-    marginTop: 20,
-    alignItems: "center",
-  },
-  splitText: {
-    color: COLORS.white,
-    fontSize: 18,
-    fontWeight: "bold",
-  },
-  button: {
-    backgroundColor: COLORS.primary,
-    padding: 15,
-    borderRadius: 8,
-    alignItems: "center",
-    marginTop: 30,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonText: {
-    color: COLORS.white,
-    fontSize: 18,
-    fontWeight: "bold",
-  },
-  splitTypeContainer: {
+  memberAction: {
     flexDirection: "row",
-    backgroundColor: COLORS.light,
-    borderRadius: 8,
-    padding: 4,
-    marginBottom: 10,
-  },
-  splitTypeButton: {
-    flex: 1,
-    padding: 10,
     alignItems: "center",
-    borderRadius: 6,
   },
-  activeSplitType: {
-    backgroundColor: COLORS.white,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+  customAmountContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F5F5F5",
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    marginRight: 12,
+    borderWidth: 1,
+    borderColor: "#E0E0E0",
   },
-  splitTypeText: {
+  customCurrency: {
+    fontSize: 14,
     color: COLORS.gray,
-    fontWeight: "600",
-  },
-  activeSplitTypeText: {
-    color: COLORS.primary,
-    fontWeight: "bold",
-  },
-  memberInfo: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginRight: 10,
+    marginRight: 4,
   },
   customAmountInput: {
-    backgroundColor: COLORS.white,
-    borderWidth: 1,
-    borderColor: COLORS.gray,
-    borderRadius: 6,
-    padding: 8,
-    width: 80,
+    width: 60,
+    paddingVertical: 8,
+    fontSize: 15,
+    fontWeight: "600",
+    color: COLORS.dark,
     textAlign: "right",
   },
-  splitError: {
-    backgroundColor: "#ff6b6b",
+  switch: {
+    transform: [{ scaleX: 0.9 }, { scaleY: 0.9 }],
   },
-  splitSuccess: {
-    backgroundColor: COLORS.success,
+  summaryCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.primary + '10',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: COLORS.primary + '30',
   },
-  subText: {
+  summaryError: {
+    backgroundColor: COLORS.danger + '10',
+    borderColor: COLORS.danger + '30',
+  },
+  summarySuccess: {
+    backgroundColor: COLORS.success + '10',
+    borderColor: COLORS.success + '30',
+  },
+  summaryIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: COLORS.white,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  summaryTextContainer: {
+    flex: 1,
+  },
+  summaryLabel: {
+    fontSize: 13,
+    color: COLORS.gray,
+    marginBottom: 4,
+    fontWeight: "500",
+  },
+  summaryValue: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: COLORS.primary,
+  },
+  saveButton: {
+    backgroundColor: COLORS.primary,
+    flexDirection: "row",
+    paddingVertical: 18,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  saveButtonDisabled: {
+    opacity: 0.7,
+  },
+  saveButtonText: {
     color: COLORS.white,
-    fontSize: 12,
-    marginTop: 4,
+    fontSize: 18,
+    fontWeight: "bold",
+    marginRight: 8,
   },
 });
