@@ -409,7 +409,7 @@ export default function GroupDetailScreen({ route, navigation }) {
 
       <AnimatedView
         entering={ZoomIn.duration(400).delay(500)}
-        style={[styles.floatingButtonContainer, { bottom: insets.bottom  }]}
+        style={[styles.floatingButtonContainer, { bottom: insets.bottom+35  }]}
       >
         <TouchableOpacity
           style={styles.floatingButton}
