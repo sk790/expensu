@@ -74,20 +74,20 @@ export default function LoginScreen({ navigation }) {
           <Text style={styles.cardTitle}>Welcome back 👋</Text>
           <Text style={styles.cardSubtitle}>Sign in to your account</Text>
 
-          {/* Email */}
+          {/* Email or Username */}
           <View style={[styles.inputWrap, focusedField === 'email' && styles.inputWrapFocused]}>
             <Ionicons
-              name="mail-outline" size={20}
+              name="person-outline" size={20}
               color={focusedField === 'email' ? COLORS.primary : COLORS.gray}
               style={styles.inputIcon}
             />
             <TextInput
               style={styles.input}
-              placeholder="Email address"
+              placeholder="Email or Username"
               placeholderTextColor={COLORS.gray}
               value={email}
               onChangeText={setEmail}
-              keyboardType="email-address"
+              keyboardType="default"
               autoCapitalize="none"
               editable={!loading}
               onFocus={() => setFocusedField('email')}

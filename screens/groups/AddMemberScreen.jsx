@@ -1,9 +1,24 @@
 import React, { useState } from "react";
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, KeyboardAvoidingView, Platform } from "react-native";
+import {
+  ActivityIndicator,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+  KeyboardAvoidingView,
+  Platform,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { groupService, userService } from "../../services/authService";
 import { COLORS } from "../../utils/constants";
-import Animated, { FadeInDown, FadeInUp, Layout, ZoomIn } from "react-native-reanimated";
+import Animated, {
+  FadeInDown,
+  FadeInUp,
+  Layout,
+  ZoomIn,
+} from "react-native-reanimated";
 import AnimatedView from "../../components/AnimatedView";
 import * as Haptics from "expo-haptics";
 import CustomAlert from "../../components/CustomAlert";
@@ -22,7 +37,11 @@ export default function AddMemberScreen({ route, navigation }) {
   const handleSearchUser = async () => {
     if (!email.trim()) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      showAlert({ type: "error", title: "Missing Input", message: "Please enter an email address to search." });
+      showAlert({
+        type: "error",
+        title: "Missing Input",
+        message: "Please enter an email or username to search.",
+      });
       return;
     }
 
@@ -37,7 +56,11 @@ export default function AddMemberScreen({ route, navigation }) {
 
       if (isAlreadyMember) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-        showAlert({ type: "warning", title: "Already a Member", message: "This user is already a part of your group." });
+        showAlert({
+          type: "warning",
+          title: "Already a Member",
+          message: "This user is already a part of your group.",
+        });
         setSearchResults(null);
         return;
       }
@@ -46,7 +69,13 @@ export default function AddMemberScreen({ route, navigation }) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      showAlert({ type: "error", title: "Not Found", message: error.response?.data?.message || "We couldn't find a user with this email." });
+      showAlert({
+        type: "error",
+        title: "Not Found",
+        message:
+          error.response?.data?.message ||
+          "We couldn't find a user with this email or username.",
+      });
       setSearchResults(null);
     } finally {
       setSearching(false);
@@ -61,54 +90,84 @@ export default function AddMemberScreen({ route, navigation }) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setLoading(true);
     try {
-      await groupService.addMemberToGroup(
-        groupId,
-        searchResults.id,
-      );
+      await groupService.addMemberToGroup(groupId, searchResults.id);
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      showAlert({ type: "success", title: "Member Added!", message: `${searchResults.name} has been added to the group.`, buttons: [
-        { text: "Awesome", onPress: () => { setEmail(""); setSearchResults(null); navigation.goBack(); } },
-      ]});
+      showAlert({
+        type: "success",
+        title: "Member Added!",
+        message: `${searchResults.name} has been added to the group.`,
+        buttons: [
+          {
+            text: "Awesome",
+            onPress: () => {
+              setEmail("");
+              setSearchResults(null);
+              navigation.goBack();
+            },
+          },
+        ],
+      });
     } catch (error) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      showAlert({ type: "error", title: "Oops", message: error.response?.data?.message || "Failed to add member to the group." });
+      showAlert({
+        type: "error",
+        title: "Oops",
+        message:
+          error.response?.data?.message || "Failed to add member to the group.",
+      });
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <KeyboardAvoidingView 
-      style={styles.containerWrapper} 
+    <KeyboardAvoidingView
+      style={styles.containerWrapper}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 20}
     >
       <CustomAlert {...alertProps} />
-      <ScrollView showsVerticalScrollIndicator={false} style={styles.container} contentContainerStyle={styles.content}>
-        
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        style={styles.container}
+        contentContainerStyle={styles.content}
+      >
         {/* Header Section */}
-        <AnimatedView entering={FadeInDown.duration(400).delay(100)} style={styles.headerContainer}>
+        <AnimatedView
+          entering={FadeInDown.duration(400).delay(100)}
+          style={styles.headerContainer}
+        >
           <View style={styles.iconCircle}>
             <Ionicons name="person-add" size={32} color={COLORS.primary} />
           </View>
           <Text style={styles.headerTitle}>Add Member</Text>
           <Text style={styles.headerSubtitle}>
-            Search by email to add friends to your group
+            Search by email or username to add friends
           </Text>
         </AnimatedView>
 
         {/* Search Bar */}
         <AnimatedView entering={FadeInDown.duration(400).delay(200)}>
-          <View style={[styles.searchContainer, focusedInput && styles.searchContainerFocused]}>
-            <Ionicons name="mail-outline" size={20} color={focusedInput ? COLORS.primary : COLORS.gray} style={styles.searchIcon} />
+          <View
+            style={[
+              styles.searchContainer,
+              focusedInput && styles.searchContainerFocused,
+            ]}
+          >
+            <Ionicons
+              name="search-outline"
+              size={20}
+              color={focusedInput ? COLORS.primary : COLORS.gray}
+              style={styles.searchIcon}
+            />
             <TextInput
               style={styles.input}
-              placeholder="Enter friend's email"
+              placeholder="Email or username"
               placeholderTextColor={COLORS.gray}
               value={email}
               onChangeText={setEmail}
-              keyboardType="email-address"
+              keyboardType="default"
               autoCapitalize="none"
               editable={!loading && !searching}
               onFocus={() => setFocusedInput(true)}
@@ -119,7 +178,8 @@ export default function AddMemberScreen({ route, navigation }) {
             <TouchableOpacity
               style={[
                 styles.searchButton,
-                (searching || loading || !email.trim()) && styles.buttonDisabled,
+                (searching || loading || !email.trim()) &&
+                  styles.buttonDisabled,
               ]}
               onPress={handleSearchUser}
               disabled={searching || loading || !email.trim()}
@@ -137,19 +197,31 @@ export default function AddMemberScreen({ route, navigation }) {
         {/* Results Area */}
         <AnimatedView layout={Layout.springify()}>
           {searchResults ? (
-            <AnimatedView entering={ZoomIn.duration(400)} style={styles.userCard}>
+            <AnimatedView
+              entering={ZoomIn.duration(400)}
+              style={styles.userCard}
+            >
               <View style={styles.userInfo}>
                 <View style={styles.avatar}>
                   <Text style={styles.avatarText}>
-                    {searchResults.name.substring(0,2).toUpperCase()}
+                    {searchResults.name.substring(0, 2).toUpperCase()}
                   </Text>
                 </View>
                 <View style={styles.userDetails}>
                   <Text style={styles.userName}>{searchResults.name}</Text>
+                  {searchResults.username && (
+                    <Text style={styles.userUsername}>
+                      @{searchResults.username}
+                    </Text>
+                  )}
                   <Text style={styles.userEmail}>{searchResults.email}</Text>
                 </View>
                 <View style={styles.foundBadge}>
-                  <Ionicons name="checkmark-circle" size={20} color={COLORS.success} />
+                  <Ionicons
+                    name="checkmark-circle"
+                    size={20}
+                    color={COLORS.success}
+                  />
                 </View>
               </View>
 
@@ -178,28 +250,36 @@ export default function AddMemberScreen({ route, navigation }) {
                   ) : (
                     <>
                       <Text style={styles.btnPrimaryText}>Add Member</Text>
-                      <Ionicons name="arrow-forward" size={18} color={COLORS.white} style={{ marginLeft: 6 }} />
+                      <Ionicons
+                        name="arrow-forward"
+                        size={18}
+                        color={COLORS.white}
+                        style={{ marginLeft: 6 }}
+                      />
                     </>
                   )}
                 </TouchableOpacity>
               </View>
             </AnimatedView>
           ) : (
-            <AnimatedView entering={FadeInUp.duration(400).delay(300)} style={styles.emptyState}>
+            <AnimatedView
+              entering={FadeInUp.duration(400).delay(300)}
+              style={styles.emptyState}
+            >
               <View style={styles.emptyStateIconBg}>
-                <Ionicons 
-                  name={email ? "search-outline" : "people-outline"} 
-                  size={48} 
-                  color={email ? COLORS.primary : COLORS.gray} 
+                <Ionicons
+                  name={email ? "search-outline" : "people-outline"}
+                  size={48}
+                  color={email ? COLORS.primary : COLORS.gray}
                 />
               </View>
               <Text style={styles.emptyStateTitle}>
                 {email ? "Ready to search" : "Grow your group"}
               </Text>
               <Text style={styles.emptyStateText}>
-                {email 
-                  ? "Tap the search button to find this user in our system." 
-                  : "Enter your friend's email address above to add them to this group."}
+                {email
+                  ? "Tap the search button to find this user in our system."
+                  : "Enter your friend's email or username above to add them to this group."}
               </Text>
             </AnimatedView>
           )}
@@ -231,7 +311,7 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: COLORS.primary + '15',
+    backgroundColor: COLORS.primary + "15",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 16,
@@ -310,7 +390,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: COLORS.primary + '20',
+    backgroundColor: COLORS.primary + "20",
     justifyContent: "center",
     alignItems: "center",
     marginRight: 16,
@@ -329,8 +409,14 @@ const styles = StyleSheet.create({
     color: COLORS.dark,
     marginBottom: 4,
   },
+  userUsername: {
+    fontSize: 13,
+    color: COLORS.primary,
+    fontWeight: "600",
+    marginBottom: 2,
+  },
   userEmail: {
-    fontSize: 14,
+    fontSize: 13,
     color: COLORS.gray,
   },
   foundBadge: {

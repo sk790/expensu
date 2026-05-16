@@ -18,6 +18,11 @@ import GroupsListScreen from "./groups/GroupsListScreen";
 import UserExpensesScreen from "./groups/UserExpensesScreen";
 import AnalyticsScreen from "./home/AnalyticsScreen";
 import ProfileScreen from "./home/ProfileScreen";
+import TermsOfServiceScreen from "./home/TermsOfServiceScreen";
+import HelpCenterScreen from "./home/HelpCenterScreen";
+import NotificationSettingsScreen from "./home/NotificationSettingsScreen";
+import SecuritySettingsScreen from "./home/SecuritySettingsScreen";
+import EditProfileScreen from "./home/EditProfileScreen";
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -98,6 +103,31 @@ function ProfileStack() {
       <Stack.Screen
         name="ProfileScreen"
         component={ProfileScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="TermsOfService"
+        component={TermsOfServiceScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="HelpCenter"
+        component={HelpCenterScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="Notifications"
+        component={NotificationSettingsScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="Security"
+        component={SecuritySettingsScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="EditProfile"
+        component={EditProfileScreen}
         options={{ headerShown: false }}
       />
     </Stack.Navigator>

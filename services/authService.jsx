@@ -138,4 +138,12 @@ export const userService = {
     const response = await api.get("/user/profile");
     return response.data;
   },
+
+  async updateProfile(userData) {
+    const response = await api.put("/user/profile", userData);
+    if (response.data.success || response.data.user) {
+      await storage.setUser(response.data.user);
+    }
+    return response.data;
+  },
 };
