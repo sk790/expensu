@@ -1,6 +1,7 @@
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { COLORS } from "../utils/constants";
 
 const getInitials = (name = "") => name.substring(0, 2).toUpperCase();
@@ -84,9 +85,16 @@ export default function GroupSummaryCard({ group, totalExpenses, onAddMember, on
           )}
         </View>
 
-        <TouchableOpacity style={styles.addBtn} onPress={onAddMember} activeOpacity={0.8}>
-          <Ionicons name="person-add-outline" size={15} color={COLORS.white} />
-          <Text style={styles.addBtnText}>Add</Text>
+        <TouchableOpacity style={styles.addBtnWrap} onPress={onAddMember} activeOpacity={0.8}>
+          <LinearGradient
+            colors={[COLORS.gradientStart, COLORS.gradientEnd]}
+            style={styles.addBtn}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+          >
+            <Ionicons name="person-add-outline" size={15} color={COLORS.white} />
+            <Text style={styles.addBtnText}>Add</Text>
+          </LinearGradient>
         </TouchableOpacity>
       </View>
     </TouchableOpacity>
@@ -116,7 +124,7 @@ const styles = StyleSheet.create({
     width: 46,
     height: 46,
     borderRadius: 14,
-    backgroundColor: COLORS.primary + "12",
+    backgroundColor: COLORS.primary + "18",
     alignItems: "center",
     justifyContent: "center",
     marginRight: 12,
@@ -194,19 +202,22 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#6B7280",
   },
+  addBtnWrap: {
+    borderRadius: 12,
+    overflow: "hidden",
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.28,
+    shadowRadius: 8,
+    elevation: 4,
+  },
   addBtn: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: COLORS.primary,
     paddingHorizontal: 14,
     paddingVertical: 9,
     borderRadius: 12,
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 4,
   },
   addBtnText: {
     color: "#FFFFFF",

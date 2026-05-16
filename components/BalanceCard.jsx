@@ -1,6 +1,5 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import Icon from 'react-native-vector-icons/MaterialIcons';
 import { COLORS } from '../utils/constants';
 
 export default function BalanceCard({ balance }) {
@@ -57,14 +56,14 @@ export default function BalanceCard({ balance }) {
 const styles = StyleSheet.create({
   card: {
     backgroundColor: COLORS.white,
-    padding: 15,
-    marginBottom: 10,
-    borderRadius: 10,
-    elevation: 2,
+    padding: 16,
+    marginBottom: 12,
+    borderRadius: 16,
+    elevation: 3,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.22,
-    shadowRadius: 2.22,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
   },
   header: {
     flexDirection: 'row',
@@ -80,7 +79,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: COLORS.primary,
+    backgroundColor: COLORS.gradientStart,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 10,

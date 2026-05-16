@@ -111,6 +111,16 @@ export const groupService = {
     const response = await api.get(`/groups/${groupId}/payments`);
     return response.data;
   },
+
+  async deleteGroup(groupId) {
+    const response = await api.delete(`/groups/${groupId}`);
+    return response.data;
+  },
+
+  async updateGroup(groupId, name) {
+    const response = await api.put(`/groups/${groupId}`, { name });
+    return response.data;
+  },
 };
 export const userService = {
   async getUserList() {

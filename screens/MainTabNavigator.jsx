@@ -1,7 +1,9 @@
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createStackNavigator } from "@react-navigation/stack";
+import { LinearGradient } from "expo-linear-gradient";
 import React from "react";
-import Icon from "react-native-vector-icons/MaterialIcons";
+import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { COLORS } from "../utils/constants";
 
 // Import screens
@@ -14,18 +16,37 @@ import GroupDetailsScreen from "./groups/GroupDetailsScreen";
 import GroupMembersScreen from "./groups/GroupMembersScreen";
 import GroupsListScreen from "./groups/GroupsListScreen";
 import UserExpensesScreen from "./groups/UserExpensesScreen";
+import AnalyticsScreen from "./home/AnalyticsScreen";
 import ProfileScreen from "./home/ProfileScreen";
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
 
+// Shared gradient header background
+const GradientHeader = () => (
+  <LinearGradient
+    colors={[COLORS.gradientStart, COLORS.gradientEnd]}
+    start={{ x: 0, y: 0 }}
+    end={{ x: 1, y: 0 }}
+    style={{ flex: 1 }}
+  />
+);
+
+const sharedStackOptions = {
+  headerStyle: { backgroundColor: COLORS.gradientStart },
+  headerBackground: () => <GradientHeader />,
+  headerTintColor: "#FFFFFF",
+  headerTitleStyle: { fontWeight: "700", fontSize: 18 },
+  headerBackTitleVisible: false,
+};
+
 function GroupsStack() {
   return (
-    <Stack.Navigator>
+    <Stack.Navigator screenOptions={sharedStackOptions}>
       <Stack.Screen
         name="GroupsList"
         component={GroupsListScreen}
-        options={{ title: "My Groups" }}
+        options={{ headerShown: false }}
       />
       <Stack.Screen
         name="GroupDetails"
@@ -70,42 +91,58 @@ function GroupsStack() {
     </Stack.Navigator>
   );
 }
+
 function ProfileStack() {
   return (
-    <Stack.Navigator>
+    <Stack.Navigator screenOptions={sharedStackOptions}>
       <Stack.Screen
         name="ProfileScreen"
         component={ProfileScreen}
-        options={{ title: "Profile", headerShown: false }}
+        options={{ headerShown: false }}
       />
     </Stack.Navigator>
   );
 }
 
 export default function MainTabNavigator() {
-  const a = true;
+  const insets = useSafeAreaInsets();
+  const tabBarHeight = 58 + insets.bottom;
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
         tabBarIcon: ({ focused, color, size }) => {
-          let iconName;
-
-          if (route.name === "Groups") {
-            iconName = "group";
-          }
-          if (route.name === "Profile") {
-            iconName = "person";
-          }
-
-          return <Icon name={iconName} size={size} color={color} />;
+          const icons = {
+            Groups: focused ? "people" : "people-outline",
+            Stats: focused ? "bar-chart" : "bar-chart-outline",
+            Profile: focused ? "person" : "person-outline",
+          };
+          return <Ionicons name={icons[route.name] || "ellipse"} size={size} color={color} />;
         },
         tabBarActiveTintColor: COLORS.primary,
         tabBarInactiveTintColor: COLORS.gray,
         headerShown: false,
+        tabBarStyle: {
+          backgroundColor: "#FFFFFF",
+          borderTopWidth: 0,
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: -4 },
+          shadowOpacity: 0.08,
+          shadowRadius: 12,
+          elevation: 12,
+          height: tabBarHeight,
+          paddingBottom: insets.bottom + 4,
+          paddingTop: 8,
+        },
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: "700",
+          letterSpacing: 0.3,
+        },
       })}
     >
-      {a && <Tab.Screen name="Groups" component={GroupsStack} />}
-
+      <Tab.Screen name="Groups" component={GroupsStack} />
+      <Tab.Screen name="Stats" component={AnalyticsScreen} />
       <Tab.Screen name="Profile" component={ProfileStack} />
     </Tab.Navigator>
   );

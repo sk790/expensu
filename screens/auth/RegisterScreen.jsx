@@ -1,9 +1,14 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator } from 'react-native';
+import {
+  View, Text, TextInput, TouchableOpacity, StyleSheet,
+  KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, StatusBar,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
 import { COLORS } from '../../utils/constants';
-import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
+import { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import AnimatedView from "../../components/AnimatedView";
 import * as Haptics from 'expo-haptics';
 import CustomAlert from '../../components/CustomAlert';
@@ -20,6 +25,7 @@ export default function RegisterScreen({ navigation }) {
   const [focusedField, setFocusedField] = useState(null);
   const { register } = useAuth();
   const { alertProps, showAlert } = useAlert();
+  const insets = useSafeAreaInsets();
 
   const handleRegister = async () => {
     if (!name || !email || !password || !confirmPassword) {
@@ -58,23 +64,53 @@ export default function RegisterScreen({ navigation }) {
   ];
 
   return (
-    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+    <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <StatusBar barStyle="light-content" backgroundColor={COLORS.gradientStart} translucent />
       <CustomAlert {...alertProps} />
-      <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
-        <AnimatedView entering={FadeInDown.duration(500).delay(100)} style={styles.heroSection}>
-          <View style={styles.logoContainer}>
-            <Ionicons name="person-add" size={40} color={COLORS.white} />
+
+      {/* Gradient hero */}
+      <LinearGradient
+        colors={[COLORS.gradientStart, COLORS.gradientEnd]}
+        style={[styles.hero, { paddingTop: insets.top + 28 }]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      >
+        <AnimatedView entering={FadeInDown.duration(500).delay(100)} style={styles.heroContent}>
+          <View style={styles.logoCircle}>
+            <Ionicons name="person-add" size={36} color="#FFF" />
           </View>
           <Text style={styles.appName}>Create Account</Text>
           <Text style={styles.tagline}>Join Expensu and split smartly</Text>
         </AnimatedView>
+      </LinearGradient>
 
-        <AnimatedView entering={FadeInUp.duration(500).delay(250)} style={styles.card}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        <AnimatedView entering={FadeInUp.duration(500).delay(200)} style={styles.card}>
           {fields.map((field, index) => (
-            <AnimatedView key={field.key} entering={FadeInDown.duration(300).delay(100 + index * 60)}>
-              <View style={[styles.inputWrapper, focusedField === field.key && styles.inputWrapperFocused]}>
-                <Ionicons name={field.icon} size={20} color={focusedField === field.key ? COLORS.primary : COLORS.gray} style={styles.inputIcon} />
-                <TextInput style={styles.input} placeholder={field.label} placeholderTextColor={COLORS.gray} value={field.value} onChangeText={field.setter} keyboardType={field.type} autoCapitalize={field.key === 'name' ? 'words' : 'none'} secureTextEntry={field.secure} editable={!loading} onFocus={() => setFocusedField(field.key)} onBlur={() => setFocusedField(null)} />
+            <AnimatedView key={field.key} entering={FadeInDown.duration(300).delay(100 + index * 55)}>
+              <View style={[styles.inputWrap, focusedField === field.key && styles.inputWrapFocused]}>
+                <Ionicons
+                  name={field.icon} size={20}
+                  color={focusedField === field.key ? COLORS.primary : COLORS.gray}
+                  style={styles.inputIcon}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder={field.label}
+                  placeholderTextColor={COLORS.gray}
+                  value={field.value}
+                  onChangeText={field.setter}
+                  keyboardType={field.type}
+                  autoCapitalize={field.key === 'name' ? 'words' : 'none'}
+                  secureTextEntry={field.secure}
+                  editable={!loading}
+                  onFocus={() => setFocusedField(field.key)}
+                  onBlur={() => setFocusedField(null)}
+                />
                 {field.toggleShow && (
                   <TouchableOpacity onPress={field.toggleShow} style={styles.eyeIcon}>
                     <Ionicons name={field.showState ? 'eye-off-outline' : 'eye-outline'} size={20} color={COLORS.gray} />
@@ -84,14 +120,29 @@ export default function RegisterScreen({ navigation }) {
             </AnimatedView>
           ))}
 
-          <TouchableOpacity style={[styles.registerButton, loading && styles.buttonDisabled]} onPress={handleRegister} disabled={loading} activeOpacity={0.85}>
-            {loading ? <ActivityIndicator color={COLORS.white} /> : <Text style={styles.registerButtonText}>Create Account</Text>}
+          <TouchableOpacity
+            style={[styles.btnWrapper, loading && { opacity: 0.7 }]}
+            onPress={handleRegister}
+            disabled={loading}
+            activeOpacity={0.85}
+          >
+            <LinearGradient
+              colors={[COLORS.gradientStart, COLORS.gradientEnd]}
+              style={styles.btn}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+            >
+              {loading
+                ? <ActivityIndicator color="#FFF" />
+                : <Text style={styles.btnText}>Create Account</Text>
+              }
+            </LinearGradient>
           </TouchableOpacity>
 
-          <View style={styles.loginRow}>
-            <Text style={styles.loginPrompt}>Already have an account? </Text>
+          <View style={styles.footerRow}>
+            <Text style={styles.footerPrompt}>Already have an account? </Text>
             <TouchableOpacity onPress={() => navigation.navigate('Login')} disabled={loading}>
-              <Text style={styles.loginLink}>Sign In</Text>
+              <Text style={styles.footerLink}>Sign In</Text>
             </TouchableOpacity>
           </View>
         </AnimatedView>
@@ -102,22 +153,52 @@ export default function RegisterScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8F9FA' },
-  scrollContainer: { flexGrow: 1, justifyContent: 'center', padding: 24 },
-  heroSection: { alignItems: 'center', marginBottom: 32 },
-  logoContainer: { width: 80, height: 80, borderRadius: 24, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center', marginBottom: 16, shadowColor: COLORS.primary, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.35, shadowRadius: 16, elevation: 8 },
-  appName: { fontSize: 28, fontWeight: 'bold', color: COLORS.dark },
-  tagline: { fontSize: 14, color: COLORS.gray, marginTop: 6 },
-  card: { backgroundColor: COLORS.white, borderRadius: 24, padding: 28, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.06, shadowRadius: 20, elevation: 4 },
-  inputWrapper: { flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderColor: '#F0F0F0', borderRadius: 14, backgroundColor: '#FAFAFA', marginBottom: 14, overflow: 'hidden' },
-  inputWrapperFocused: { borderColor: COLORS.primary, backgroundColor: COLORS.white },
-  inputIcon: { paddingHorizontal: 16 },
-  input: { flex: 1, fontSize: 16, color: COLORS.dark, paddingVertical: 16, paddingRight: 12 },
-  eyeIcon: { paddingHorizontal: 16 },
-  registerButton: { backgroundColor: COLORS.primary, paddingVertical: 18, borderRadius: 14, alignItems: 'center', marginTop: 10, marginBottom: 24, shadowColor: COLORS.primary, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.3, shadowRadius: 12, elevation: 6 },
-  buttonDisabled: { opacity: 0.7 },
-  registerButtonText: { color: COLORS.white, fontSize: 17, fontWeight: 'bold' },
-  loginRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
-  loginPrompt: { fontSize: 15, color: COLORS.gray },
-  loginLink: { fontSize: 15, color: COLORS.primary, fontWeight: 'bold' },
+  root: { flex: 1, backgroundColor: '#F4F5FA' },
+  hero: {
+    paddingHorizontal: 28,
+    paddingBottom: 36,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+  },
+  heroContent: { alignItems: 'center' },
+  logoCircle: {
+    width: 72, height: 72, borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center', justifyContent: 'center',
+    marginBottom: 14,
+    borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.4)',
+  },
+  appName: { fontSize: 26, fontWeight: '800', color: '#FFF', letterSpacing: -0.3, marginBottom: 4 },
+  tagline: { fontSize: 13, color: 'rgba(255,255,255,0.8)', fontWeight: '500' },
+
+  scrollContent: { padding: 20, paddingTop: 24 },
+  card: {
+    backgroundColor: '#FFF',
+    borderRadius: 24,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.07,
+    shadowRadius: 20,
+    elevation: 5,
+  },
+
+  inputWrap: {
+    flexDirection: 'row', alignItems: 'center',
+    borderWidth: 1.5, borderColor: '#EBEBF0',
+    borderRadius: 14, backgroundColor: '#FAFAFE',
+    marginBottom: 12, overflow: 'hidden',
+  },
+  inputWrapFocused: { borderColor: COLORS.primary, backgroundColor: '#FFF' },
+  inputIcon: { paddingHorizontal: 14 },
+  input: { flex: 1, fontSize: 15, color: COLORS.dark, paddingVertical: 15, paddingRight: 12 },
+  eyeIcon: { paddingHorizontal: 14 },
+
+  btnWrapper: { borderRadius: 14, overflow: 'hidden', marginTop: 10, marginBottom: 24 },
+  btn: { paddingVertical: 17, alignItems: 'center', justifyContent: 'center' },
+  btnText: { color: '#FFF', fontSize: 16, fontWeight: '800', letterSpacing: 0.3 },
+
+  footerRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
+  footerPrompt: { fontSize: 14, color: COLORS.gray },
+  footerLink: { fontSize: 14, color: COLORS.primary, fontWeight: '700' },
 });

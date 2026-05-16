@@ -1,6 +1,7 @@
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import * as Haptics from "expo-haptics";
+import { LinearGradient } from "expo-linear-gradient";
 import React, { useCallback, useLayoutEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -146,6 +147,7 @@ export default function GroupDetailScreen({ route, navigation }) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={COLORS.primary} />
+        <Text style={styles.loadingText}>Loading…</Text>
       </View>
     );
   }
@@ -413,6 +415,7 @@ export default function GroupDetailScreen({ route, navigation }) {
         entering={ZoomIn.duration(400).delay(500)}
         style={styles.floatingButtonContainer}
       >
+        <View style={styles.fabPulse} />
         <TouchableOpacity
           style={styles.floatingButton}
           activeOpacity={0.8}
@@ -424,7 +427,14 @@ export default function GroupDetailScreen({ route, navigation }) {
             });
           }}
         >
-          <Ionicons name="add" size={32} color={COLORS.white} />
+          <LinearGradient
+            colors={[COLORS.gradientStart, COLORS.gradientEnd]}
+            style={styles.fabGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <Ionicons name="add" size={32} color={COLORS.white} />
+          </LinearGradient>
         </TouchableOpacity>
       </AnimatedView>
 
@@ -516,7 +526,7 @@ export default function GroupDetailScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   containerWrapper: {
     flex: 1,
-    backgroundColor: "#F8F9FA",
+    backgroundColor: "#F4F5FA",
   },
   container: {
     flex: 1,
@@ -529,8 +539,10 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#F8F9FA",
+    backgroundColor: "#F4F5FA",
+    gap: 12,
   },
+  loadingText: { fontSize: 14, color: COLORS.gray, fontWeight: "600" },
   section: {
     marginBottom: 30,
   },
@@ -589,25 +601,37 @@ const styles = StyleSheet.create({
     bottom: 30,
     right: 20,
     zIndex: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  fabPulse: {
+    position: "absolute",
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    backgroundColor: COLORS.primary + "28",
   },
   floatingButton: {
-    backgroundColor: COLORS.primary,
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    justifyContent: "center",
-    alignItems: "center",
+    width: 62,
+    height: 62,
+    borderRadius: 31,
+    overflow: "hidden",
     shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 8,
+    shadowOpacity: 0.45,
+    shadowRadius: 14,
+    elevation: 10,
+  },
+  fabGradient: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
   },
   tabContainer: {
     flexDirection: "row",
     marginBottom: 24,
-    backgroundColor: "#EEEEEE",
-    borderRadius: 12,
+    backgroundColor: "#EBEBF5",
+    borderRadius: 14,
     padding: 4,
     marginTop: 8,
   },
@@ -621,23 +645,18 @@ const styles = StyleSheet.create({
   },
   activeTabBg: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: COLORS.white,
-    borderRadius: 10,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    backgroundColor: COLORS.primary,
+    borderRadius: 11,
     zIndex: -1,
   },
   tabText: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: "600",
     color: COLORS.gray,
   },
   activeTabText: {
-    color: COLORS.dark,
-    fontWeight: "bold",
+    color: "#FFFFFF",
+    fontWeight: "800",
   },
   balancesList: {
     gap: 16,
@@ -680,15 +699,15 @@ const styles = StyleSheet.create({
     color: COLORS.danger,
   },
   settleButton: {
-    backgroundColor: COLORS.success + "20",
+    backgroundColor: COLORS.primary + "18",
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: COLORS.success + "40",
+    borderColor: COLORS.primary + "35",
   },
   settleButtonText: {
-    color: COLORS.success,
+    color: COLORS.primary,
     fontSize: 13,
     fontWeight: "bold",
   },
@@ -769,14 +788,14 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: COLORS.primary + "20",
+    backgroundColor: COLORS.gradientStart + "22",
     alignItems: "center",
     justifyContent: "center",
   },
   modalUserAvatarText: {
     fontSize: 16,
     fontWeight: "bold",
-    color: COLORS.primary,
+    color: COLORS.gradientStart,
   },
   inputLabel: {
     fontSize: 14,
@@ -808,14 +827,14 @@ const styles = StyleSheet.create({
     color: COLORS.dark,
   },
   modalBtnConfirm: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: COLORS.gradientStart,
     paddingVertical: 18,
-    borderRadius: 16,
+    borderRadius: 14,
     alignItems: "center",
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    shadowColor: COLORS.gradientStart,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
     elevation: 6,
   },
   modalBtnTextConfirm: {
