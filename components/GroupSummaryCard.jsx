@@ -35,7 +35,7 @@ export default function GroupSummaryCard({ group, totalExpenses, onAddMember, on
           <Text style={styles.groupSubtitle}>Tap to manage members</Text>
         </View>
         <View style={styles.chevron}>
-          <Ionicons name="chevron-forward" size={18} color="#C0C0C0" />
+          <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
         </View>
       </View>
 
@@ -69,7 +69,7 @@ export default function GroupSummaryCard({ group, totalExpenses, onAddMember, on
                 key={member._id || i}
                 style={[
                   styles.memberAvatar,
-                  { backgroundColor: color + "25", borderColor: "#FFFFFF", marginLeft: i === 0 ? 0 : -10 },
+                  { backgroundColor: color + "25", marginLeft: i === 0 ? 0 : -10 },
                 ]}
               >
                 <Text style={[styles.memberAvatarText, { color }]}>
@@ -107,11 +107,6 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     padding: 20,
     marginBottom: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.07,
-    shadowRadius: 16,
-    elevation: 4,
     borderWidth: 1,
     borderColor: "#F0F0F0",
   },

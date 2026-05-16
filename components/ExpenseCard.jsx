@@ -80,11 +80,8 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     marginBottom: 12,
     overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    elevation: 3,
+    borderWidth: 1,
+    borderColor: "#F0F0F0",
   },
   accentBar: {
     width: 4,

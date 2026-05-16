@@ -28,7 +28,10 @@ import CustomAlert from "../../components/CustomAlert";
 import GroupCard from "../../components/GroupCard";
 import { useAuth } from "../../context/AuthContext";
 import { useAlert } from "../../hooks/useAlert";
-import { groupService } from "../../services/authService";
+import {
+  groupService,
+  groupInvitationService,
+} from "../../services/authService";
 import { COLORS } from "../../utils/constants";
 import Swipeable from "react-native-gesture-handler/ReanimatedSwipeable";
 import { RectButton } from "react-native-gesture-handler";
@@ -36,15 +39,6 @@ import { RectButton } from "react-native-gesture-handler";
 const ACCENT = "#6C63FF";
 const ACCENT2 = "#43C6AC";
 const BG = "#F4F5FA";
-
-const DEMO_CHART_DATA = {
-  labels: ["Trip", "Rent", "Dining", "Office", "Gym"],
-  datasets: [
-    {
-      data: [4500, 12000, 3200, 5800, 2100],
-    },
-  ],
-};
 
 function getGreeting() {
   const hour = new Date().getHours();
@@ -62,19 +56,28 @@ export default function GroupsListScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [invitationsCount, setInvitationsCount] = useState(0);
   const { logout, user } = useAuth();
   const { alertProps, showAlert } = useAlert();
   const insets = useSafeAreaInsets();
 
   const fetchGroups = async () => {
     try {
-      const response = await groupService.getUserGroups();
-      setGroups(response.data);
+      const groupsRes = await groupService.getUserGroups();
+      setGroups(groupsRes.data);
+
+      try {
+        const invRes = await groupInvitationService.getMyInvitations();
+        setInvitationsCount(invRes.data?.length || 0);
+      } catch (invError) {
+        console.error("Failed to fetch invitations:", invError);
+      }
     } catch (error) {
+      console.error("Failed to fetch groups:", error);
       showAlert({
         type: "error",
         title: "Error",
-        message: "Failed to fetch groups",
+        message: `Failed to fetch groups`,
       });
     } finally {
       setLoading(false);
@@ -96,7 +99,9 @@ export default function GroupsListScreen({ navigation }) {
           onPress: async () => {
             try {
               await groupService.deleteGroup(group._id);
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              Haptics.notificationAsync(
+                Haptics.NotificationFeedbackType.Success,
+              );
               fetchGroups();
             } catch (error) {
               showAlert({
@@ -137,7 +142,7 @@ export default function GroupsListScreen({ navigation }) {
 
   React.useEffect(() => {
     navigation.setOptions({
-      headerShown: false, // We draw our own header
+      headerShown: false,
     });
   }, [navigation]);
 
@@ -159,18 +164,11 @@ export default function GroupsListScreen({ navigation }) {
     );
   }, [groups, searchQuery]);
 
-  const overallTotalExpense = useMemo(() => {
-    return groups.reduce((acc, g) => acc + (g.totalExpense || 0), 0);
-  }, [groups]);
-
   const totalMembers = useMemo(
     () => groups.reduce((acc, g) => acc + (g.members?.length ?? 0), 0),
     [groups],
   );
 
-  /* ── Loading state ─────────────────────────────────────────── */
-
-  /* ── Loading state ─────────────────────────────────────────── */
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -192,7 +190,6 @@ export default function GroupsListScreen({ navigation }) {
     );
   }
 
-  /* ── Main render ───────────────────────────────────────────── */
   return (
     <View style={styles.root}>
       <StatusBar
@@ -202,14 +199,12 @@ export default function GroupsListScreen({ navigation }) {
       />
       <CustomAlert {...alertProps} />
 
-      {/* ── Hero Header ─────────────────────────────────────── */}
       <LinearGradient
         colors={[ACCENT, ACCENT2]}
         style={[styles.header, { paddingTop: insets.top + 14 }]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
       >
-        {/* Top row: title + logout */}
         <AnimatedView entering={FadeInDown.duration(400)}>
           <View style={styles.headerTop}>
             <View>
@@ -220,27 +215,42 @@ export default function GroupsListScreen({ navigation }) {
                 {getFirstName(user?.name)} 👋
               </Text>
             </View>
-            <TouchableOpacity
-              style={styles.logoutBtn}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                showAlert({
-                  type: "confirm",
-                  title: "Logout",
-                  message: "Are you sure you want to logout?",
-                  buttons: [
-                    { text: "Cancel", style: "cancel" },
-                    { text: "Logout", style: "destructive", onPress: logout },
-                  ],
-                });
-              }}
-            >
-              <Ionicons name="log-out-outline" size={22} color="#FFF" />
-            </TouchableOpacity>
+            <View style={{ flexDirection: "row", gap: 12 }}>
+              <TouchableOpacity
+                style={styles.notificationBtn}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  navigation.navigate("Invitations");
+                }}
+              >
+                <Ionicons name="notifications-outline" size={24} color="#FFF" />
+                {invitationsCount > 0 && (
+                  <View style={styles.badge}>
+                    <Text style={styles.badgeText}>{invitationsCount}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.logoutBtn}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  showAlert({
+                    type: "confirm",
+                    title: "Logout",
+                    message: "Are you sure you want to logout?",
+                    buttons: [
+                      { text: "Cancel", style: "cancel" },
+                      { text: "Logout", style: "destructive", onPress: logout },
+                    ],
+                  });
+                }}
+              >
+                <Ionicons name="log-out-outline" size={22} color="#FFF" />
+              </TouchableOpacity>
+            </View>
           </View>
         </AnimatedView>
 
-        {/* Stats pills */}
         <AnimatedView entering={FadeInDown.duration(450).delay(80)}>
           <View style={styles.statsRow}>
             <View style={styles.statPill}>
@@ -257,14 +267,13 @@ export default function GroupsListScreen({ navigation }) {
           </View>
         </AnimatedView>
 
-        {/* Search bar */}
         <AnimatedView entering={FadeInDown.duration(480).delay(140)}>
           <View style={styles.searchWrap}>
-            <Ionicons name="search" size={18} color={ACCENT} />
+            <Ionicons name="search" size={18} color={COLORS.primary} />
             <TextInput
               style={styles.searchInput}
               placeholder="Search groups…"
-              placeholderTextColor="#AAA"
+              placeholderTextColor="#999"
               value={searchQuery}
               onChangeText={setSearchQuery}
               returnKeyType="search"
@@ -278,7 +287,6 @@ export default function GroupsListScreen({ navigation }) {
         </AnimatedView>
       </LinearGradient>
 
-      {/* ── List ────────────────────────────────────────────── */}
       <FlatList
         data={filteredGroups}
         keyExtractor={(item) => item._id}
@@ -332,7 +340,6 @@ export default function GroupsListScreen({ navigation }) {
             entering={FadeInUp.duration(500)}
             style={styles.emptyContainer}
           >
-            {/* Glow circle */}
             <View style={styles.emptyGlow}>
               <LinearGradient
                 colors={[ACCENT + "40", ACCENT2 + "20"]}
@@ -376,12 +383,10 @@ export default function GroupsListScreen({ navigation }) {
         }
       />
 
-      {/* ── FAB ─────────────────────────────────────────────── */}
       <AnimatedView
         entering={ZoomIn.duration(400).delay(300)}
         style={[styles.fabContainer, { bottom: insets.bottom + 75 }]}
       >
-        {/* Pulse ring */}
         <View style={styles.fabPulse} />
         <TouchableOpacity
           style={styles.fab}
@@ -407,8 +412,6 @@ export default function GroupsListScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: BG },
-
-  /* Loading */
   loadingContainer: { flex: 1 },
   loadingGradient: {
     flex: 1,
@@ -417,8 +420,6 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   loadingText: { color: "#FFF", fontSize: 15, fontWeight: "600" },
-
-  /* Header – paddingTop is set dynamically via insets in JSX */
   header: {
     paddingHorizontal: 20,
     paddingBottom: 20,
@@ -431,34 +432,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 20,
-  },
-  headerStatsCard: {
-    flexDirection: "row",
-    backgroundColor: "rgba(255, 255, 255, 0.15)",
-    borderRadius: 20,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.2)",
-  },
-  statBox: {
-    flex: 1,
-    alignItems: "center",
-  },
-  statDivider: {
-    width: 1,
-    height: "100%",
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-  },
-  statLabel: {
-    color: "rgba(255, 255, 255, 0.8)",
-    fontSize: 12,
-    fontWeight: "600",
-    marginBottom: 4,
-  },
-  statValue: {
-    color: "#FFF",
-    fontSize: 18,
-    fontWeight: "800",
   },
   headerLabel: {
     fontSize: 12,
@@ -482,8 +455,33 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-
-  /* Stats row */
+  notificationBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  badge: {
+    position: "absolute",
+    top: 2,
+    right: 2,
+    backgroundColor: "#FF3B30",
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 4,
+    borderWidth: 1.5,
+    borderColor: ACCENT,
+  },
+  badgeText: {
+    color: "#FFF",
+    fontSize: 10,
+    fontWeight: "800",
+  },
   statsRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -504,8 +502,16 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: "#FFF",
   },
-
-  /* Search */
+  statDivider: {
+    width: 1,
+    height: 14,
+    backgroundColor: "rgba(255,255,255,0.3)",
+  },
+  statLabel: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.8)",
+    fontWeight: "600",
+  },
   searchWrap: {
     flexDirection: "row",
     alignItems: "center",
@@ -521,8 +527,6 @@ const styles = StyleSheet.create({
     color: "#1A1A2E",
     fontWeight: "500",
   },
-
-  /* List */
   sectionLabel: {
     fontSize: 13,
     fontWeight: "700",
@@ -535,8 +539,6 @@ const styles = StyleSheet.create({
   },
   listContent: { paddingTop: 4, paddingBottom: 110 },
   emptyList: { flexGrow: 1, justifyContent: "center" },
-
-  /* Empty state */
   emptyContainer: {
     alignItems: "center",
     justifyContent: "center",
@@ -583,9 +585,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#FFF",
   },
-
-  /* FAB */
-  /* FAB */
   fabContainer: {
     position: "absolute",
     right: 22,
@@ -605,11 +604,6 @@ const styles = StyleSheet.create({
     height: 62,
     borderRadius: 31,
     backgroundColor: ACCENT,
-    shadowColor: ACCENT,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.5,
-    shadowRadius: 12,
-    elevation: 10,
   },
   fabGradient: {
     flex: 1,
@@ -618,12 +612,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-
-  /* Actions */
   rightActions: {
     flexDirection: "row",
     height: "100%",
-    paddingVertical: 10, // Match GroupCard marginVertical
+    paddingVertical: 10,
     paddingRight: 16,
     borderRadius: 24,
     overflow: "hidden",

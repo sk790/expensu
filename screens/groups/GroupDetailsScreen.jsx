@@ -14,7 +14,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 import Animated, {
   FadeInDown,
@@ -68,7 +68,6 @@ export default function GroupDetailScreen({ route, navigation }) {
       setSettleModalVisible(false);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert("Success", "Payment recorded successfully!");
-      // Refresh data
       fetchExpenses();
       fetchBalances();
       fetchPayments();
@@ -266,7 +265,7 @@ export default function GroupDetailScreen({ route, navigation }) {
                 (user.owesTo || []).map((debt) => ({
                   from: user.name,
                   to:
-                    balances.find((b) => b.userId === debt.paidBy)?.name ||
+                    balances.find((b) => b.userId === debt.paidBy || b.userId === debt.to)?.name ||
                     "Unknown",
                   amount: debt.amount,
                 })),
@@ -295,8 +294,7 @@ export default function GroupDetailScreen({ route, navigation }) {
                     (user.owesTo || []).map((debt, index) => {
                       const toUser = balances.find(
                         (b) =>
-                          b.userId ===
-                            (debt.paidBy || debt.userId || debt.to) ||
+                          b.userId === (debt.paidBy || debt.userId || debt.to) ||
                           b.email === debt.email,
                       );
 
@@ -467,7 +465,7 @@ export default function GroupDetailScreen({ route, navigation }) {
                 />
               </TouchableOpacity>
             </View>
-
+ 
             {settleData && (
               <View style={styles.modalUsersRow}>
                 <View style={styles.modalUserAvatar}>
@@ -571,11 +569,8 @@ const styles = StyleSheet.create({
     paddingVertical: 40,
     backgroundColor: COLORS.white,
     borderRadius: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 12,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: "#F0F0F0",
   },
   emptyIconCircle: {
     width: 80,
@@ -616,11 +611,6 @@ const styles = StyleSheet.create({
     height: 62,
     borderRadius: 31,
     overflow: "hidden",
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.45,
-    shadowRadius: 14,
-    elevation: 10,
   },
   fabGradient: {
     flex: 1,
@@ -671,11 +661,8 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderLeftWidth: 4,
     borderLeftColor: COLORS.danger,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: "#F0F0F0",
   },
   balanceInfo: {
     flex: 1,
@@ -717,11 +704,8 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.white,
     padding: 16,
     borderRadius: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: "#F0F0F0",
   },
   historyIconWrapper: {
     width: 40,
@@ -780,7 +764,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 24,
-    backgroundColor: COLORS.light,
+    backgroundColor: "#F8F9FA",
     padding: 16,
     borderRadius: 12,
   },
@@ -788,58 +772,53 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: COLORS.gradientStart + "22",
+    backgroundColor: COLORS.primary + "22",
     alignItems: "center",
     justifyContent: "center",
   },
   modalUserAvatarText: {
     fontSize: 16,
     fontWeight: "bold",
-    color: COLORS.gradientStart,
+    color: COLORS.primary,
   },
   inputLabel: {
     fontSize: 14,
-    fontWeight: "600",
+    fontWeight: "700",
     color: COLORS.gray,
-    marginBottom: 8,
+    marginBottom: 12,
+    textTransform: "uppercase",
   },
   modalInputGroup: {
     flexDirection: "row",
     alignItems: "center",
-    borderWidth: 1.5,
-    borderColor: COLORS.primary,
+    backgroundColor: "#F8F9FA",
     borderRadius: 12,
-    backgroundColor: COLORS.white,
-    marginBottom: 32,
-    overflow: "hidden",
+    paddingHorizontal: 16,
+    marginBottom: 24,
   },
   modalCurrency: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: "bold",
     color: COLORS.dark,
-    paddingLeft: 16,
+    marginRight: 8,
   },
   modalInput: {
     flex: 1,
-    padding: 16,
+    height: 60,
     fontSize: 24,
     fontWeight: "bold",
     color: COLORS.dark,
   },
   modalBtnConfirm: {
-    backgroundColor: COLORS.gradientStart,
-    paddingVertical: 18,
-    borderRadius: 14,
+    backgroundColor: COLORS.primary,
+    height: 56,
+    borderRadius: 12,
     alignItems: "center",
-    shadowColor: COLORS.gradientStart,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
-    elevation: 6,
+    justifyContent: "center",
   },
   modalBtnTextConfirm: {
     color: COLORS.white,
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "bold",
   },
 });

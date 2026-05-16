@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   ActivityIndicator,
   ScrollView,
@@ -11,7 +11,7 @@ import {
   Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { groupService, userService } from "../../services/authService";
+import { groupService, userService, groupInvitationService } from "../../services/authService";
 import { COLORS } from "../../utils/constants";
 import Animated, {
   FadeInDown,
@@ -34,6 +34,45 @@ export default function AddMemberScreen({ route, navigation }) {
   const [focusedInput, setFocusedInput] = useState(false);
   const { alertProps, showAlert } = useAlert();
 
+  useEffect(() => {
+    console.log(`Debounce started for: "${email}"`);
+    const timer = setTimeout(() => {
+      if (email.trim().length >= 1) {
+        console.log(`Performing search for: "${email}"`);
+        performSearch();
+      } else {
+        setSearchResults(null);
+      }
+    }, 300);
+
+    return () => {
+      console.log(`Clearing timer for: "${email}"`);
+      clearTimeout(timer);
+    };
+  }, [email]);
+
+  const performSearch = async () => {
+    setSearching(true);
+    try {
+      const response = await userService.searchUserByEmail(email.trim());
+
+      const isAlreadyMember = currentMembers.some(
+        (member) => member._id === response.user._id,
+      );
+
+      if (isAlreadyMember) {
+        setSearchResults(null);
+        return;
+      }
+
+      setSearchResults(response.user);
+    } catch (error) {
+      setSearchResults(null);
+    } finally {
+      setSearching(false);
+    }
+  };
+
   const handleSearchUser = async () => {
     if (!email.trim()) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -44,45 +83,10 @@ export default function AddMemberScreen({ route, navigation }) {
       });
       return;
     }
-
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setSearching(true);
-    try {
-      const response = await userService.searchUserByEmail(email.trim());
-
-      const isAlreadyMember = currentMembers.some(
-        (member) => member._id === response.user._id,
-      );
-
-      if (isAlreadyMember) {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-        showAlert({
-          type: "warning",
-          title: "Already a Member",
-          message: "This user is already a part of your group.",
-        });
-        setSearchResults(null);
-        return;
-      }
-
-      setSearchResults(response.user);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch (error) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      showAlert({
-        type: "error",
-        title: "Not Found",
-        message:
-          error.response?.data?.message ||
-          "We couldn't find a user with this email or username.",
-      });
-      setSearchResults(null);
-    } finally {
-      setSearching(false);
-    }
+    performSearch();
   };
 
-  const handleAddMember = async () => {
+  const handleSendInvite = async () => {
     if (!searchResults) {
       return;
     }
@@ -90,16 +94,16 @@ export default function AddMemberScreen({ route, navigation }) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setLoading(true);
     try {
-      await groupService.addMemberToGroup(groupId, searchResults.id);
+      await groupInvitationService.sendInvitation(groupId, searchResults.id);
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       showAlert({
         type: "success",
-        title: "Member Added!",
-        message: `${searchResults.name} has been added to the group.`,
+        title: "Invitation Sent!",
+        message: `A request has been sent to ${searchResults.name}. They will be added once they accept.`,
         buttons: [
           {
-            text: "Awesome",
+            text: "Done",
             onPress: () => {
               setEmail("");
               setSearchResults(null);
@@ -114,7 +118,7 @@ export default function AddMemberScreen({ route, navigation }) {
         type: "error",
         title: "Oops",
         message:
-          error.response?.data?.message || "Failed to add member to the group.",
+          error.response?.data?.message || "Failed to send invitation.",
       });
     } finally {
       setLoading(false);
@@ -241,7 +245,7 @@ export default function AddMemberScreen({ route, navigation }) {
 
                 <TouchableOpacity
                   style={[styles.btnPrimary, loading && styles.buttonDisabled]}
-                  onPress={handleAddMember}
+                  onPress={handleSendInvite}
                   disabled={loading}
                   activeOpacity={0.8}
                 >
@@ -249,9 +253,9 @@ export default function AddMemberScreen({ route, navigation }) {
                     <ActivityIndicator size="small" color={COLORS.white} />
                   ) : (
                     <>
-                      <Text style={styles.btnPrimaryText}>Add Member</Text>
+                      <Text style={styles.btnPrimaryText}>Send Invite</Text>
                       <Ionicons
-                        name="arrow-forward"
+                        name="paper-plane"
                         size={18}
                         color={COLORS.white}
                         style={{ marginLeft: 6 }}
@@ -338,11 +342,8 @@ const styles = StyleSheet.create({
     paddingRight: 6,
     paddingVertical: 6,
     marginBottom: 32,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.03,
-    shadowRadius: 8,
-    elevation: 2,
+    shadowColor: "transparent",
+    elevation: 0,
   },
   searchContainerFocused: {
     borderColor: COLORS.primary,
@@ -372,11 +373,8 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.white,
     borderRadius: 16,
     padding: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.06,
-    shadowRadius: 16,
-    elevation: 4,
+    borderWidth: 1,
+    borderColor: "#F0F0F0",
   },
   userInfo: {
     flexDirection: "row",
@@ -434,11 +432,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
   },
   btnPrimaryText: {
     color: COLORS.white,
@@ -466,12 +459,8 @@ const styles = StyleSheet.create({
     paddingVertical: 40,
     backgroundColor: COLORS.white,
     borderRadius: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.03,
-    shadowRadius: 12,
-    elevation: 2,
-    paddingHorizontal: 20,
+    borderWidth: 1,
+    borderColor: "#F0F0F0",
   },
   emptyStateIconBg: {
     width: 80,

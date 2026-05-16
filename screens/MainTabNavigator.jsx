@@ -23,6 +23,9 @@ import HelpCenterScreen from "./home/HelpCenterScreen";
 import NotificationSettingsScreen from "./home/NotificationSettingsScreen";
 import SecuritySettingsScreen from "./home/SecuritySettingsScreen";
 import EditProfileScreen from "./home/EditProfileScreen";
+import WalletScreen from "./home/WalletScreen";
+import ReferAndEarnScreen from "./home/ReferAndEarnScreen";
+import InvitationsScreen from "./home/InvitationsScreen";
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -93,6 +96,11 @@ function GroupsStack() {
         component={UserExpensesScreen}
         options={{ title: "User Expenses" }}
       />
+      <Stack.Screen
+        name="Invitations"
+        component={InvitationsScreen}
+        options={{ headerShown: false }}
+      />
     </Stack.Navigator>
   );
 }
@@ -130,6 +138,16 @@ function ProfileStack() {
         component={EditProfileScreen}
         options={{ headerShown: false }}
       />
+      <Stack.Screen
+        name="Wallet"
+        component={WalletScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="ReferAndEarn"
+        component={ReferAndEarnScreen}
+        options={{ headerShown: false }}
+      />
     </Stack.Navigator>
   );
 }
@@ -147,10 +165,16 @@ export default function MainTabNavigator() {
             Stats: focused ? "bar-chart" : "bar-chart-outline",
             Profile: focused ? "person" : "person-outline",
           };
-          return <Ionicons name={icons[route.name] || "ellipse"} size={size} color={color} />;
+          return (
+            <Ionicons
+              name={icons[route.name] || "ellipse"}
+              size={size}
+              color={color}
+            />
+          );
         },
         tabBarActiveTintColor: COLORS.primary,
-        tabBarInactiveTintColor: COLORS.gray,
+        tabBarInactiveTintColor: "#9CA3AF",
         headerShown: false,
         tabBarStyle: {
           backgroundColor: "#FFFFFF",

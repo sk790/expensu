@@ -19,6 +19,7 @@ export default function RegisterScreen({ navigation }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [referralCode, setReferralCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -46,7 +47,7 @@ export default function RegisterScreen({ navigation }) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setLoading(true);
     try {
-      await register(name, email, password);
+      await register(name, email, password, referralCode);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -61,6 +62,7 @@ export default function RegisterScreen({ navigation }) {
     { key: 'email', label: 'Email address', icon: 'mail-outline', value: email, setter: setEmail, type: 'email-address', secure: false },
     { key: 'password', label: 'Password', icon: 'lock-closed-outline', value: password, setter: setPassword, type: 'default', secure: !showPassword, toggleShow: () => setShowPassword(!showPassword), showState: showPassword },
     { key: 'confirmPassword', label: 'Confirm Password', icon: 'shield-checkmark-outline', value: confirmPassword, setter: setConfirmPassword, type: 'default', secure: !showConfirmPassword, toggleShow: () => setShowConfirmPassword(!showConfirmPassword), showState: showConfirmPassword },
+    { key: 'referralCode', label: 'Referral Code (Optional)', icon: 'gift-outline', value: referralCode, setter: setReferralCode, type: 'default', secure: false },
   ];
 
   return (
