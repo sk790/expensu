@@ -1,10 +1,15 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { AuthProvider, useAuth } from "../context/AuthContext";
 import LoginScreen from "../screens/auth/LoginScreen";
 import RegisterScreen from "../screens/auth/RegisterScreen";
 import MainTabNavigator from "../screens/MainTabNavigator";
 import { createStackNavigator } from "@react-navigation/stack";
-import { ActivityIndicator, View } from "react-native";
+import SplashScreen from "../components/SplashScreen";
+import { registerForPushNotificationsAsync } from "../utils/notifications";
+import * as ExpoSplashScreen from "expo-splash-screen";
+
+// Keep native splash screen visible until we manually hide it
+ExpoSplashScreen.preventAutoHideAsync().catch(() => {});
 
 const Stack = createStackNavigator();
 
@@ -17,11 +22,14 @@ function AuthStack() {
   );
 }
 
-import { useEffect } from "react";
-import { registerForPushNotificationsAsync } from "../utils/notifications";
-
 export function AppNavigator() {
   const { user, loading } = useAuth();
+  const [splashFinished, setSplashFinished] = useState(false);
+
+  useEffect(() => {
+    // Dismiss the default native splash screen immediately so our custom one takes over
+    ExpoSplashScreen.hideAsync().catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (user) {
@@ -29,11 +37,12 @@ export function AppNavigator() {
     }
   }, [user]);
 
-  if (loading) {
+  if (!splashFinished) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator size="large" />
-      </View>
+      <SplashScreen
+        loading={loading}
+        onFinish={() => setSplashFinished(true)}
+      />
     );
   }
 

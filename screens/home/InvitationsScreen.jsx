@@ -23,7 +23,7 @@ export default function InvitationsScreen({ navigation }) {
   const [invitations, setInvitations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [processingId, setProcessingId] = useState(null);
+  const [processing, setProcessing] = useState({ id: null, action: null });
   const { alertProps, showAlert } = useAlert();
 
   const fetchInvitations = async () => {
@@ -44,7 +44,7 @@ export default function InvitationsScreen({ navigation }) {
 
   const handleResponse = async (invitationId, status) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setProcessingId(invitationId);
+    setProcessing({ id: invitationId, action: status });
     try {
       await groupInvitationService.respondToInvitation(invitationId, status);
       setInvitations((prev) => prev.filter((inv) => inv._id !== invitationId));
@@ -65,61 +65,94 @@ export default function InvitationsScreen({ navigation }) {
         message: error.response?.data?.message || "Failed to process invitation.",
       });
     } finally {
-      setProcessingId(null);
+      setProcessing({ id: null, action: null });
     }
   };
 
-  const renderItem = ({ item, index }) => (
-    <AnimatedView
-      entering={FadeInDown.delay(index * 100)}
-      layout={Layout.springify()}
-      style={styles.invitationCard}
-    >
-      <View style={styles.cardHeader}>
-        <View style={styles.groupIconContainer}>
-          <Ionicons name="people" size={24} color={COLORS.primary} />
-        </View>
-        <View style={styles.headerText}>
-          <Text style={styles.groupName}>{item.group.name}</Text>
-          <Text style={styles.inviterText}>
-            Invited by <Text style={styles.inviterName}>{item.inviter.name}</Text>
-          </Text>
-        </View>
-      </View>
+  const renderItem = ({ item, index }) => {
+    const isProcessing = processing.id === item._id;
+    const isAccepting = isProcessing && processing.action === "accepted";
+    const isDeclining = isProcessing && processing.action === "rejected";
 
-      <View style={styles.actionButtons}>
-        <TouchableOpacity
-          style={[styles.btn, styles.btnReject]}
-          onPress={() => handleResponse(item._id, "rejected")}
-          disabled={!!processingId}
-        >
-          {processingId === item._id ? (
-            <ActivityIndicator size="small" color={COLORS.danger} />
-          ) : (
-            <>
-              <Ionicons name="close-circle-outline" size={18} color={COLORS.danger} />
-              <Text style={styles.btnTextReject}>Decline</Text>
-            </>
-          )}
-        </TouchableOpacity>
+    return (
+      <AnimatedView
+        entering={FadeInDown.delay(index * 100)}
+        layout={Layout.springify()}
+        style={styles.invitationCard}
+      >
+        <View style={styles.cardHeader}>
+          <View style={styles.groupIconContainer}>
+            <Ionicons name="people" size={24} color={COLORS.primary} />
+          </View>
+          <View style={styles.headerText}>
+            <Text style={styles.groupName}>{item.group?.name || "Deleted Group"}</Text>
+            <Text style={styles.inviterText}>
+              Invited by <Text style={styles.inviterName}>{item.inviter?.name || "Unknown User"}</Text>
+            </Text>
+          </View>
+        </View>
 
-        <TouchableOpacity
-          style={[styles.btn, styles.btnAccept]}
-          onPress={() => handleResponse(item._id, "accepted")}
-          disabled={!!processingId}
-        >
-          {processingId === item._id ? (
-            <ActivityIndicator size="small" color={COLORS.white} />
-          ) : (
-            <>
-              <Ionicons name="checkmark-circle" size={18} color={COLORS.white} />
-              <Text style={styles.btnTextAccept}>Accept</Text>
-            </>
-          )}
-        </TouchableOpacity>
-      </View>
-    </AnimatedView>
-  );
+        <View style={styles.badgeRow}>
+          <View style={[styles.badgeItem, { backgroundColor: COLORS.primary + "10" }]}>
+            <Ionicons name="people" size={12} color={COLORS.primary} style={{ marginRight: 4 }} />
+            <Text style={[styles.badgeText, { color: COLORS.primary }]}>
+              {item.group?.members?.length || 1} members
+            </Text>
+          </View>
+          <View style={[styles.badgeItem, { backgroundColor: "#F3F4F6" }]}>
+            <Ionicons name="calendar-outline" size={12} color={COLORS.gray} style={{ marginRight: 4 }} />
+            <Text style={[styles.badgeText, { color: COLORS.dark }]}>
+              {new Date(item.createdAt).toLocaleDateString("en-IN", { month: "short", day: "numeric" })}
+            </Text>
+          </View>
+        </View>
+
+        <Text style={styles.cardDescription}>
+          Join this group to split expenses, track payments, and settle up balances with friends seamlessly.
+        </Text>
+
+        <View style={styles.actionButtons}>
+          <TouchableOpacity
+            style={[
+              styles.btn,
+              styles.btnReject,
+              isProcessing && !isDeclining && { opacity: 0.5 }
+            ]}
+            onPress={() => handleResponse(item._id, "rejected")}
+            disabled={isProcessing}
+          >
+            {isDeclining ? (
+              <ActivityIndicator size="small" color={COLORS.danger} />
+            ) : (
+              <>
+                <Ionicons name="close-circle-outline" size={18} color={COLORS.danger} />
+                <Text style={styles.btnTextReject}>Decline</Text>
+              </>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.btn,
+              styles.btnAccept,
+              isProcessing && !isAccepting && { opacity: 0.5 }
+            ]}
+            onPress={() => handleResponse(item._id, "accepted")}
+            disabled={isProcessing}
+          >
+            {isAccepting ? (
+              <ActivityIndicator size="small" color={COLORS.white} />
+            ) : (
+              <>
+                <Ionicons name="checkmark-circle" size={18} color={COLORS.white} />
+                <Text style={styles.btnTextAccept}>Accept</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+      </AnimatedView>
+    );
+  };
 
   if (loading && !refreshing) {
     return <LoadingSpinner message="Checking for requests..." />;
@@ -190,7 +223,29 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 3,
   },
-  cardHeader: { flexDirection: "row", alignItems: "center", marginBottom: 20 },
+  cardHeader: { flexDirection: "row", alignItems: "center", marginBottom: 12 },
+  badgeRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 12,
+  },
+  badgeItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  badgeText: {
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  cardDescription: {
+    fontSize: 13,
+    color: "#6B7280",
+    lineHeight: 18,
+    marginBottom: 16,
+  },
   groupIconContainer: {
     width: 50,
     height: 50,
