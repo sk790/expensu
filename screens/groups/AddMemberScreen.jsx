@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   StatusBar,
+  Image,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { userService, groupInvitationService } from "../../services/authService";
@@ -20,6 +21,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import CustomAlert from "../../components/CustomAlert";
 import { useAlert } from "../../hooks/useAlert";
+import { storage } from "../../utils/storage";
 
 export default function AddMemberScreen({ route, navigation }) {
   const { groupId, currentMembers } = route.params;
@@ -30,7 +32,21 @@ export default function AddMemberScreen({ route, navigation }) {
   const [loading, setLoading] = useState(false);
   const [searching, setSearching] = useState(false);
   const [invitationStatus, setInvitationStatus] = useState(null);
+  const [recentMembers, setRecentMembers] = useState([]);
   const { alertProps, showAlert } = useAlert();
+
+  useEffect(() => {
+    loadRecentMembers();
+  }, []);
+
+  const loadRecentMembers = async () => {
+    try {
+      const list = await storage.getRecentMembers();
+      setRecentMembers(list || []);
+    } catch (error) {
+      console.error("Failed to load recent members:", error);
+    }
+  };
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -72,6 +88,15 @@ export default function AddMemberScreen({ route, navigation }) {
     setLoading(true);
     try {
       await groupInvitationService.sendInvitation(groupId, searchResults.id);
+      
+      // Save to recent members list in AsyncStorage!
+      try {
+        const updatedList = await storage.addRecentMember(searchResults);
+        setRecentMembers(updatedList);
+      } catch (storageError) {
+        console.error("Failed to save recent member:", storageError);
+      }
+
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       showAlert({
         type: "success",
@@ -146,7 +171,11 @@ export default function AddMemberScreen({ route, navigation }) {
               <Animated.View entering={ZoomIn.duration(400)} layout={Layout.springify()} style={styles.userCard}>
                 <View style={styles.cardHeader}>
                   <View style={styles.squircleAvatar}>
-                    <Text style={styles.avatarText}>{searchResults.name.substring(0, 1).toUpperCase()}</Text>
+                    {searchResults.avatar ? (
+                      <Image source={{ uri: searchResults.avatar }} style={styles.resultAvatarImage} />
+                    ) : (
+                      <Text style={styles.avatarText}>{searchResults.name.substring(0, 1).toUpperCase()}</Text>
+                    )}
                   </View>
                   <View style={styles.userInfo}>
                     <Text style={styles.userName}>{searchResults.name}</Text>
@@ -193,6 +222,40 @@ export default function AddMemberScreen({ route, navigation }) {
                       </LinearGradient>
                     </TouchableOpacity>
                   )}
+                </View>
+              </Animated.View>
+            ) : email.length === 0 && recentMembers.length > 0 ? (
+              <Animated.View entering={FadeInUp.duration(400)} style={styles.recentSection}>
+                <Text style={styles.recentTitle}>Recent Invites</Text>
+                <View style={styles.recentCard}>
+                  {recentMembers.map((member, index) => (
+                    <View key={member.id || member._id || index}>
+                      <TouchableOpacity
+                        style={styles.recentRow}
+                        onPress={() => {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          setEmail(member.email || member.username);
+                        }}
+                        activeOpacity={0.7}
+                      >
+                        <View style={styles.recentAvatar}>
+                          {member.avatar ? (
+                            <Image source={{ uri: member.avatar }} style={styles.recentAvatarImage} />
+                          ) : (
+                            <Text style={styles.recentAvatarText}>
+                              {member.name ? member.name.charAt(0).toUpperCase() : "U"}
+                            </Text>
+                          )}
+                        </View>
+                        <View style={styles.recentInfo}>
+                          <Text style={styles.recentName}>{member.name}</Text>
+                          <Text style={styles.recentHandle}>@{member.username || "user"}</Text>
+                        </View>
+                        <Ionicons name="arrow-forward" size={18} color={COLORS.gray + "80"} />
+                      </TouchableOpacity>
+                      {index < recentMembers.length - 1 && <View style={styles.recentDivider} />}
+                    </View>
+                  ))}
                 </View>
               </Animated.View>
             ) : (
@@ -378,6 +441,76 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
     marginLeft: 8,
+  },
+  resultAvatarImage: {
+    width: 56,
+    height: 56,
+    borderRadius: 20,
+  },
+  recentSection: {
+    marginTop: 8,
+  },
+  recentTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: COLORS.dark,
+    marginBottom: 12,
+    letterSpacing: -0.2,
+  },
+  recentCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.03,
+    shadowRadius: 10,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: "#F0F0F0",
+  },
+  recentRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+  },
+  recentAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 16,
+    backgroundColor: COLORS.primary + "15",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  recentAvatarImage: {
+    width: 44,
+    height: 44,
+    borderRadius: 16,
+  },
+  recentAvatarText: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: COLORS.primary,
+  },
+  recentInfo: {
+    flex: 1,
+    marginLeft: 14,
+  },
+  recentName: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: COLORS.dark,
+  },
+  recentHandle: {
+    fontSize: 12,
+    color: COLORS.gray,
+    fontWeight: "500",
+    marginTop: 2,
+  },
+  recentDivider: {
+    height: 1,
+    backgroundColor: "#F2F4F7",
   },
   emptyContainer: {
     alignItems: "center",

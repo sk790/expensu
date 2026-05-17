@@ -21,6 +21,7 @@ import CustomAlert from "../../components/CustomAlert";
 import { useAlert } from "../../hooks/useAlert";
 import { groupService } from "../../services/authService";
 import { COLORS } from "../../utils/constants";
+import { useAuth } from "../../context/AuthContext";
 
 export default function ExpenseDetailScreen({ route, navigation }) {
   const { expense: initialExpense, groupId } = route.params;
@@ -28,6 +29,10 @@ export default function ExpenseDetailScreen({ route, navigation }) {
   const [loading, setLoading] = React.useState(false);
   const [refreshing, setRefreshing] = React.useState(false);
   const { alertProps, showAlert } = useAlert();
+  const { user: currentUser } = useAuth();
+
+  const currentUserId = currentUser?._id || currentUser?.id;
+  const isCreator = currentUserId === (expense.paidBy?._id || expense.paidBy);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -71,18 +76,12 @@ export default function ExpenseDetailScreen({ route, navigation }) {
           text: "Delete",
           style: "destructive",
           onPress: async () => {
-            setLoading(true);
             try {
               await groupService.deleteExpense(groupId, expense._id);
               Haptics.notificationAsync(
                 Haptics.NotificationFeedbackType.Success,
               );
-              showAlert({
-                type: "success",
-                title: "Deleted",
-                message: "Expense removed successfully.",
-                buttons: [{ text: "OK", onPress: () => navigation.goBack() }],
-              });
+              navigation.goBack();
             } catch (error) {
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
               showAlert({
@@ -90,8 +89,6 @@ export default function ExpenseDetailScreen({ route, navigation }) {
                 title: "Error",
                 message: "Failed to delete expense",
               });
-            } finally {
-              setLoading(false);
             }
           },
         },
@@ -251,27 +248,29 @@ export default function ExpenseDetailScreen({ route, navigation }) {
       </ScrollView>
 
       {/* Action Buttons */}
-      <AnimatedView
-        entering={FadeInUp.duration(400).delay(400)}
-        style={styles.actionContainer}
-      >
-        <TouchableOpacity
-          style={[styles.actionButton, styles.editButton]}
-          onPress={handleEdit}
-          activeOpacity={0.8}
+      {isCreator && (
+        <AnimatedView
+          entering={FadeInUp.duration(400).delay(400)}
+          style={styles.actionContainer}
         >
-          <Ionicons name="pencil" size={18} color={COLORS.white} />
-          <Text style={styles.actionButtonText}>Edit</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.actionButton, styles.deleteButton]}
-          onPress={handleDelete}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="trash-outline" size={18} color={COLORS.white} />
-          <Text style={styles.actionButtonText}>Delete</Text>
-        </TouchableOpacity>
-      </AnimatedView>
+          <TouchableOpacity
+            style={[styles.actionButton, styles.editButton]}
+            onPress={handleEdit}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="pencil" size={18} color={COLORS.white} />
+            <Text style={styles.actionButtonText}>Edit</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.actionButton, styles.deleteButton]}
+            onPress={handleDelete}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="trash-outline" size={18} color={COLORS.white} />
+            <Text style={styles.actionButtonText}>Delete</Text>
+          </TouchableOpacity>
+        </AnimatedView>
+      )}
     </View>
   );
 }

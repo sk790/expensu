@@ -1,5 +1,5 @@
 import React from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS, SHADOWS } from "../utils/constants";
 
@@ -55,11 +55,15 @@ export default function ExpenseCard({ expense, onPress }) {
         {/* Bottom meta row */}
         <View style={styles.bottomRow}>
           <View style={styles.metaChip}>
-            <View style={styles.payerAvatar}>
-              <Text style={styles.payerAvatarText}>{getInitials(expense.paidBy?.name)}</Text>
-            </View>
+            {expense.paidBy?.avatar ? (
+              <Image source={{ uri: expense.paidBy.avatar }} style={styles.payerAvatarImage} />
+            ) : (
+              <View style={styles.payerAvatar}>
+                <Text style={styles.payerAvatarText}>{getInitials(expense.paidBy?.name)}</Text>
+              </View>
+            )}
             <Text style={styles.metaText} numberOfLines={1}>
-              {expense.paidBy?.name}
+              {expense.paidBy?.name || "Someone"}
             </Text>
           </View>
 
@@ -156,6 +160,12 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary + "20",
     alignItems: "center",
     justifyContent: "center",
+  },
+  payerAvatarImage: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "#F3F4F6",
   },
   payerAvatarText: {
     fontSize: 9,

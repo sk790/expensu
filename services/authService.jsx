@@ -44,6 +44,11 @@ export const groupService = {
     return response.data;
   },
 
+  async getUserExpenses() {
+    const response = await api.get("groups/user/expenses");
+    return response.data;
+  },
+
   async getGroup(groupId) {
     const response = await api.get(`groups/${groupId}`);
     return response.data;
@@ -53,22 +58,24 @@ export const groupService = {
     return response.data;
   },
 
-  async addExpense(groupId, amount, splitBetween, description) {
+  async addExpense(groupId, amount, splitBetween, description, paidBy) {
     const response = await api.post(`groups/${groupId}/expenses`, {
       amount,
       splitBetween,
       description,
+      paidBy,
     });
     console.log(response);
     
     return response.data;
   },
 
-  async editExpense(groupId, expenseId, amount, splitBetween, description) {
+  async editExpense(groupId, expenseId, amount, splitBetween, description, paidBy) {
     const response = await api.put(`groups/${groupId}/expenses/${expenseId}`, {
       amount,
       splitBetween,
       description,
+      paidBy,
     });
     return response.data;
   },
@@ -100,8 +107,9 @@ export const groupService = {
     });
     return response.data;
   },
-  async settleUp(groupId, toUserId, amount) {
+  async settleUp(groupId, fromUserId, toUserId, amount) {
     const response = await api.post(`groups/${groupId}/settle`, {
+      fromUserId,
       toUserId,
       amount,
     });

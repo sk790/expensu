@@ -51,4 +51,39 @@ export const storage = {
       console.error('Error removing user:', error);
     }
   },
+
+  async getRecentMembers() {
+    try {
+      const recentJson = await AsyncStorage.getItem('recentMembers');
+      console.log(recentJson,'recentJson');
+      
+      return recentJson ? JSON.parse(recentJson) : [];
+    } catch (error) {
+      console.error('Error getting recent members:', error);
+      return [];
+    }
+  },
+
+  async addRecentMember(member) {
+    try {
+      const recent = await storage.getRecentMembers();
+      // Filter out if duplicate
+      const filtered = recent.filter(m => {
+        if (!m) return false;
+        const isSame = 
+          (m.id && member.id && m.id === member.id) ||
+          (m._id && member._id && m._id === member._id) ||
+          (m.id && member._id && m.id === member._id) ||
+          (m._id && member.id && m._id === member.id) ||
+          (m.email && member.email && m.email === member.email);
+        return !isSame;
+      });
+      const updated = [member, ...filtered].slice(0, 5);
+      await AsyncStorage.setItem('recentMembers', JSON.stringify(updated));
+      return updated;
+    } catch (error) {
+      console.error('Error adding recent member:', error);
+      return [];
+    }
+  },
 };

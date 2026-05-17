@@ -12,6 +12,8 @@ import {
   Platform,
   TouchableWithoutFeedback,
   Keyboard,
+  Image,
+  Modal,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -43,14 +45,35 @@ const InputField = ({ label, value, onChange, placeholder, icon }) => (
 );
 
 
+const AVATAR_OPTIONS = [
+  { id: "avatar1", url: "https://api.dicebear.com/7.x/avataaars/png?seed=Felix" },
+  { id: "avatar2", url: "https://api.dicebear.com/7.x/avataaars/png?seed=Aneka" },
+  { id: "avatar3", url: "https://api.dicebear.com/7.x/avataaars/png?seed=James" },
+  { id: "avatar4", url: "https://api.dicebear.com/7.x/avataaars/png?seed=Jasmine" },
+  { id: "avatar6", url: "https://api.dicebear.com/7.x/avataaars/png?seed=Luna" },
+  { id: "avatar7", url: "https://api.dicebear.com/7.x/avataaars/png?seed=Rocky" },
+  { id: "avatar8", url: "https://api.dicebear.com/7.x/avataaars/png?seed=Bella" },
+  { id: "avatar9", url: "https://api.dicebear.com/7.x/avataaars/png?seed=Jack" },
+  { id: "avatar10", url: "https://api.dicebear.com/7.x/avataaars/png?seed=Milo" },
+  { id: "avatar11", url: "https://api.dicebear.com/7.x/avataaars/png?seed=Sophie" },
+  { id: "avatar12", url: "https://api.dicebear.com/7.x/avataaars/png?seed=Toby" },
+  { id: "avatar13", url: "https://api.dicebear.com/7.x/avataaars/png?seed=Chloe" },
+  { id: "avatar14", url: "https://api.dicebear.com/7.x/avataaars/png?seed=Oliver" },
+  { id: "avatar15", url: "https://api.dicebear.com/7.x/avataaars/png?seed=Zoe" },
+  { id: "avatar16", url: "https://api.dicebear.com/7.x/avataaars/png?seed=Max" },
+  { id: "avatar17", url: "https://api.dicebear.com/7.x/avataaars/png?seed=Lily" },
+];
+
 export default function EditProfileScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
   const { alertProps, showAlert } = useAlert();
   const [loading, setLoading] = useState(false);
+  const [pickerVisible, setPickerVisible] = useState(false);
   
   const [formData, setFormData] = useState({
     name: "",
     username: "",
+    avatar: "",
   });
 
   const { updateUser } = useAuth();
@@ -60,6 +83,7 @@ export default function EditProfileScreen({ navigation, route }) {
       setFormData({
         name: route.params.user.name || "",
         username: route.params.user.username || "",
+        avatar: route.params.user.avatar || "",
       });
     }
   }, []);
@@ -132,14 +156,25 @@ export default function EditProfileScreen({ navigation, route }) {
           >
             <AnimatedView entering={FadeInDown.duration(400).delay(100)}>
               <View style={styles.avatarSection}>
-                <View style={styles.avatarCircle}>
-                  <Text style={styles.avatarText}>
-                    {formData.name ? formData.name.substring(0, 2).toUpperCase() : "U"}
-                  </Text>
-                  <TouchableOpacity style={styles.editBadge}>
-                    <Ionicons name="camera" size={16} color="#FFF" />
-                  </TouchableOpacity>
-                </View>
+                <TouchableOpacity 
+                  style={styles.avatarCircle}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setPickerVisible(true);
+                  }}
+                  activeOpacity={0.9}
+                >
+                  {formData.avatar ? (
+                    <Image source={{ uri: formData.avatar }} style={styles.avatarImage} />
+                  ) : (
+                    <Text style={styles.avatarText}>
+                      {formData.name ? formData.name.substring(0, 2).toUpperCase() : "U"}
+                    </Text>
+                  )}
+                  <View style={styles.editBadge}>
+                    <Ionicons name="pencil" size={14} color="#FFF" />
+                  </View>
+                </TouchableOpacity>
                 <Text style={styles.avatarHint}>Tap to change avatar</Text>
               </View>
 
@@ -176,6 +211,48 @@ export default function EditProfileScreen({ navigation, route }) {
           </ScrollView>
         </TouchableWithoutFeedback>
       </KeyboardAvoidingView>
+
+      {/* Avatar Picker Modal */}
+      <Modal
+        visible={pickerVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setPickerVisible(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setPickerVisible(false)}>
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={styles.modalContent}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>Choose an Avatar</Text>
+                  <TouchableOpacity onPress={() => setPickerVisible(false)}>
+                    <Ionicons name="close" size={24} color={COLORS.dark} />
+                  </TouchableOpacity>
+                </View>
+                
+                <ScrollView contentContainerStyle={styles.avatarGrid} showsVerticalScrollIndicator={false}>
+                  {AVATAR_OPTIONS.map((item) => (
+                    <TouchableOpacity
+                      key={item.id}
+                      style={[
+                        styles.gridAvatarCircle,
+                        formData.avatar === item.url && styles.selectedGridAvatarCircle
+                      ]}
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        setFormData({ ...formData, avatar: item.url });
+                        setPickerVisible(false);
+                      }}
+                    >
+                      <Image source={{ uri: item.url }} style={styles.gridAvatarImage} />
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
     </View>
   );
 }
@@ -315,5 +392,60 @@ const styles = StyleSheet.create({
     color: "#FFF",
     fontWeight: "700",
     fontSize: 16,
+  },
+  avatarImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    backgroundColor: "#FFF",
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: 24,
+    paddingTop: 20,
+    paddingBottom: 40,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: COLORS.dark,
+  },
+  avatarGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-around",
+    gap: 16,
+    paddingVertical: 10,
+  },
+  gridAvatarCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    borderWidth: 2,
+    borderColor: "#EAEAEA",
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#F9F9FB",
+  },
+  selectedGridAvatarCircle: {
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.primary + "08",
+  },
+  gridAvatarImage: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
   },
 });

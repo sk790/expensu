@@ -1,12 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import * as Haptics from "expo-haptics";
-import React, { useCallback, useLayoutEffect, useState } from "react";
+import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Modal,
   ScrollView,
-  Share,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -33,43 +32,19 @@ import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-g
 
 export default function GroupMembersScreen({ route, navigation }) {
   const { groupId, group, expenses } = route.params;
-  const [loading, setLoading] = useState(false);
-  const [inviteLink, setInviteLink] = useState("");
   const [selectedMember, setSelectedMember] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [removing, setRemoving] = useState(false);
   const { alertProps, showAlert } = useAlert();
 
-  useLayoutEffect(() => {
-    navigation.setOptions({
-      headerRight: () => (
-        <TouchableOpacity style={styles.headerButton} onPress={shareInviteLink}>
-          <Ionicons
-            name="share-social-outline"
-            size={24}
-            color={COLORS.primary}
-          />
-        </TouchableOpacity>
-      ),
-    });
-  }, [navigation, inviteLink]);
+ 
 
   useFocusEffect(
     useCallback(() => {
-      fetchInviteLink();
       getCurrentUser();
     }, [groupId]),
   );
-
-  const fetchInviteLink = async () => {
-    try {
-      const response = await groupService.getGroup(groupId);
-      setInviteLink(response.inviteLink);
-    } catch (error) {
-      console.log("Failed to fetch invite link:", error);
-    }
-  };
 
   const getCurrentUser = async () => {
     try {
@@ -102,17 +77,6 @@ export default function GroupMembersScreen({ route, navigation }) {
   );
   const totalGroupSpend =
     expenses?.reduce((sum, exp) => sum + (exp.amount || 0), 0) || 0;
-
-  const shareInviteLink = async () => {
-    try {
-      await Share.share({
-        message: `Join my group "${group.name}" on SplitMate!\n\n${inviteLink}`,
-        title: `Join ${group.name}`,
-      });
-    } catch (error) {
-      console.error(error);
-    }
-  };
 
   const handleMemberPress = (member) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -276,34 +240,6 @@ export default function GroupMembersScreen({ route, navigation }) {
             <Text style={styles.statValue}>₹{totalGroupSpend.toFixed(0)}</Text>
             <Text style={styles.statLabel}>Total Spent</Text>
           </View>
-        </AnimatedView>
-
-        {/* Invite Card */}
-        <AnimatedView
-          entering={FadeInDown.duration(400).delay(180)}
-          style={styles.inviteCard}
-        >
-          <View style={styles.inviteLeft}>
-            <Ionicons name="link-outline" size={20} color={COLORS.primary} />
-            <View style={{ marginLeft: 12 }}>
-              <Text style={styles.inviteTitle}>Invite Link</Text>
-              <Text style={styles.inviteSubtitle}>
-                Share to add new members
-              </Text>
-            </View>
-          </View>
-          <TouchableOpacity
-            style={styles.shareBtn}
-            onPress={shareInviteLink}
-            activeOpacity={0.8}
-          >
-            <Ionicons
-              name="share-social-outline"
-              size={18}
-              color={COLORS.white}
-            />
-            <Text style={styles.shareBtnText}>Share</Text>
-          </TouchableOpacity>
         </AnimatedView>
 
         {/* Members List */}

@@ -3,10 +3,11 @@ import { useFocusEffect } from "@react-navigation/native";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useCallback, useLayoutEffect, useState } from "react";
+import * as Print from "expo-print";
+import * as Sharing from "expo-sharing";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -29,9 +30,13 @@ import GroupSummaryCard from "../../components/GroupSummaryCard";
 import LoadingSpinner from "../../components/LoadingSpinner";
 import { groupService } from "../../services/authService";
 import { COLORS } from "../../utils/constants";
+import { useAuth } from "../../context/AuthContext";
+import { useAlert } from "../../hooks/useAlert";
+import CustomAlert from "../../components/CustomAlert";
 
 export default function GroupDetailScreen({ route, navigation }) {
   const { groupId } = route.params;
+  const { user: currentUser } = useAuth();
   const [group, setGroup] = useState();
   const [expenses, setExpenses] = useState([]);
   const [balances, setBalances] = useState([]);
@@ -44,6 +49,239 @@ export default function GroupDetailScreen({ route, navigation }) {
   const [customSettleAmount, setCustomSettleAmount] = useState("");
   const [settling, setSettling] = useState(false);
   const insets = useSafeAreaInsets();
+  const [exporting, setExporting] = useState(false);
+  const { alertProps, showAlert } = useAlert();
+
+  const handleExportPDF = async () => {
+    if (expenses.length === 0) {
+      showAlert({
+        type: "info",
+        title: "No Expenses",
+        message: "There are no expenses in this group to export.",
+      });
+      return;
+    }
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setExporting(true);
+
+    try {
+      const totalAmount = expenses.reduce((sum, exp) => sum + (exp.amount || 0), 0);
+      
+      const formatDate = (dateStr) => {
+        const d = new Date(dateStr);
+        return d.toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" });
+      };
+
+      const memberNames = group?.members?.map((m) => m.name).join(", ") || "None";
+
+      // Calculate total rupees spent by each member in the group
+      const getUserId = (u) => u?._id || u?.id || (typeof u === "string" ? u : "");
+      const memberSpending = (group?.members || []).map((m) => {
+        const mId = getUserId(m);
+        const amt = expenses
+          .filter((exp) => getUserId(exp.paidBy) === mId)
+          .reduce((sum, exp) => sum + (exp.amount || 0), 0);
+        return { name: m.name, amount: amt };
+      });
+      
+      // Sort members by total spending (descending order)
+      memberSpending.sort((a, b) => b.amount - a.amount);
+
+      const memberSpendingHtml = memberSpending
+        .map(
+          (m) => `
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: 13px;">
+          <span style="color: #4B5563; font-weight: 500;">${m.name}</span>
+          <span style="font-weight: 700; color: #111827;">₹${m.amount.toFixed(2)}</span>
+        </div>
+      `,
+        )
+        .join("");
+
+      const expenseRowsHtml = expenses
+        .map(
+          (exp) => `
+        <tr>
+          <td>${formatDate(exp.createdAt)}</td>
+          <td>${exp.description}</td>
+          <td>${exp.paidBy?.name || "Member"}</td>
+          <td style="font-weight: bold; color: #111827;">₹${exp.amount.toFixed(2)}</td>
+        </tr>
+      `,
+        )
+        .join("");
+
+      const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8" />
+            <title>Expense Report - ${group?.name || "Group"}</title>
+            <style>
+              body {
+                font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+                color: #111827;
+                margin: 40px;
+                line-height: 1.6;
+              }
+              .header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                border-bottom: 2px solid #6C63FF;
+                padding-bottom: 20px;
+                margin-bottom: 30px;
+              }
+              .title-area h1 {
+                margin: 0 0 6px 0;
+                font-size: 26px;
+                color: #6C63FF;
+                font-weight: 800;
+              }
+              .title-area p {
+                margin: 0;
+                color: #6B7280;
+                font-size: 13px;
+              }
+              .total-spent {
+                text-align: right;
+              }
+              .total-spent h2 {
+                margin: 0;
+                font-size: 28px;
+                color: #10B981;
+                font-weight: 800;
+              }
+              .total-spent p {
+                margin: 0;
+                color: #6B7280;
+                font-size: 11px;
+                text-transform: uppercase;
+                letter-spacing: 0.8px;
+              }
+              .summary-section {
+                background: #F9FAFB;
+                border-radius: 16px;
+                padding: 20px;
+                margin-bottom: 30px;
+                border: 1px solid #E5E7EB;
+              }
+              .summary-section h3 {
+                margin: 0 0 8px 0;
+                font-size: 14px;
+                color: #374151;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+              }
+              .summary-section p {
+                margin: 0;
+                color: #4B5563;
+                font-size: 13px;
+              }
+              table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-bottom: 40px;
+              }
+              th {
+                background-color: #6C63FF;
+                color: #ffffff;
+                text-align: left;
+                padding: 14px 16px;
+                font-size: 12px;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 0.8px;
+              }
+              td {
+                padding: 14px 16px;
+                border-bottom: 1px solid #E5E7EB;
+                font-size: 13px;
+                color: #374151;
+              }
+              tr:nth-child(even) {
+                background-color: #F9FAFB;
+              }
+              .footer {
+                text-align: center;
+                margin-top: 60px;
+                font-size: 11px;
+                color: #9CA3AF;
+                border-top: 1px solid #E5E7EB;
+                padding-top: 20px;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <div class="title-area">
+                <h1>${group?.name || "Group"}</h1>
+                <p>Expense Report &bull; Generated on ${new Date().toLocaleDateString("en-IN")}</p>
+              </div>
+              <div class="total-spent">
+                <h2>₹${totalAmount.toFixed(2)}</h2>
+                <p>Total Spent</p>
+              </div>
+            </div>
+
+            <div style="display: flex; gap: 20px; margin-bottom: 30px; align-items: stretch;">
+              <div class="summary-section" style="flex: 1; margin-bottom: 0;">
+                <h3>Group Details</h3>
+                <p style="margin-bottom: 8px;"><strong>Group Name:</strong> ${group?.name || "Group"}</p>
+                <p style="margin-bottom: 8px;"><strong>Total Expenses:</strong> ${expenses.length}</p>
+                <p style="margin-bottom: 0;"><strong>Group Members:</strong> ${memberNames}</p>
+              </div>
+              <div class="summary-section" style="flex: 1; margin-bottom: 0;">
+                <h3>Total Spending by Member</h3>
+                <div style="margin-top: 10px;">
+                  ${memberSpendingHtml}
+                </div>
+              </div>
+            </div>
+
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Description</th>
+                  <th>Paid By</th>
+                  <th>Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${expenseRowsHtml}
+              </tbody>
+            </table>
+
+            <div class="footer">
+              <p>Generated with SplitMate &bull; Share Expenses, Stay Friends</p>
+            </div>
+          </body>
+        </html>
+      `;
+
+      const { uri } = await Print.printToFileAsync({ html: htmlContent });
+      
+      await Sharing.shareAsync(uri, {
+        mimeType: "application/pdf",
+        dialogTitle: `Export ${group?.name || "Group"} Expenses`,
+        UTI: "com.adobe.pdf",
+      });
+      
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (error) {
+      console.error("PDF generation failed:", error);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      showAlert({
+        type: "error",
+        title: "Export Failed",
+        message: "Failed to generate or share PDF expense report.",
+      });
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const openSettleModal = (data) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -55,7 +293,11 @@ export default function GroupDetailScreen({ route, navigation }) {
   const handleSettleUp = async () => {
     if (!customSettleAmount || isNaN(customSettleAmount)) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert("Error", "Please enter a valid amount");
+      showAlert({
+        type: "error",
+        title: "Error",
+        message: "Please enter a valid amount",
+      });
       return;
     }
 
@@ -64,20 +306,29 @@ export default function GroupDetailScreen({ route, navigation }) {
     try {
       await groupService.settleUp(
         groupId,
+        settleData.fromUser.userId,
         settleData.toUser.userId,
         parseFloat(customSettleAmount),
       );
 
       setSettleModalVisible(false);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert("Success", "Payment recorded successfully!");
+      showAlert({
+        type: "success",
+        title: "Success",
+        message: "Payment recorded successfully!",
+      });
       fetchExpenses();
       fetchBalances();
       fetchPayments();
     } catch (error) {
       console.log(error);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert("Error", "Failed to record settlement");
+      showAlert({
+        type: "error",
+        title: "Error",
+        message: "Failed to record settlement",
+      });
     } finally {
       setSettling(false);
     }
@@ -89,7 +340,11 @@ export default function GroupDetailScreen({ route, navigation }) {
       setGroup(response.data);
       setInviteLink(response.inviteLink);
     } catch (error) {
-      Alert.alert("Error", "Failed to load group details");
+      showAlert({
+        type: "error",
+        title: "Error",
+        message: "Failed to load group details",
+      });
       navigation.goBack();
     } finally {
       setLoading(false);
@@ -214,8 +469,36 @@ export default function GroupDetailScreen({ route, navigation }) {
           {activeTab === "expenses" ? (
             <View style={styles.section}>
               <View style={styles.sectionHeaderRow}>
-                <Text style={styles.sectionTitle}>Recent Expenses</Text>
-                <Text style={styles.sectionCount}>{expenses.length} total</Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <Text style={styles.sectionTitle}>Recent Expenses</Text>
+                  {expenses.length > 0 && (
+                    <View style={styles.inlineCountBadge}>
+                      <Text style={styles.inlineCountBadgeText}>{expenses.length}</Text>
+                    </View>
+                  )}
+                </View>
+                {expenses.length > 0 && (
+                  <TouchableOpacity
+                    onPress={handleExportPDF}
+                    disabled={exporting}
+                    style={styles.inlineExportBtn}
+                    activeOpacity={0.7}
+                  >
+                    {exporting ? (
+                      <ActivityIndicator size="small" color={COLORS.primary} />
+                    ) : (
+                      <>
+                        <Ionicons
+                          name="document-text-outline"
+                          size={15}
+                          color={COLORS.primary}
+                          style={{ marginRight: 4 }}
+                        />
+                        <Text style={styles.inlineExportBtnText}>Export PDF</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                )}
               </View>
               {expenses.length === 0 ? (
                 <View style={styles.emptyContainer}>
@@ -295,6 +578,13 @@ export default function GroupDetailScreen({ route, navigation }) {
                           b.userId === (debt.paidBy || debt.userId || debt.to) ||
                           b.email === debt.email,
                       );
+                      const currentUserId = currentUser?._id || currentUser?.id;
+                      const isCurrentUserCreditor =
+                        toUser?.userId === currentUserId ||
+                        (toUser?.email && currentUser?.email && toUser.email.toLowerCase() === currentUser.email.toLowerCase());
+                      const isCurrentUserDebtor =
+                        user.userId === currentUserId ||
+                        (user.email && currentUser?.email && user.email.toLowerCase() === currentUser.email.toLowerCase());
 
                       return (
                         <AnimatedView
@@ -322,21 +612,29 @@ export default function GroupDetailScreen({ route, navigation }) {
                               ₹{debt.amount.toFixed(2)}
                             </Text>
                           </View>
-                          <TouchableOpacity
-                            style={styles.settleButton}
-                            activeOpacity={0.8}
-                            onPress={() =>
-                              openSettleModal({
-                                fromUser: user,
-                                toUser: toUser,
-                                amount: debt.amount,
-                              })
-                            }
-                          >
-                            <Text style={styles.settleButtonText}>
-                              Settle Up
-                            </Text>
-                          </TouchableOpacity>
+                          {isCurrentUserCreditor ? (
+                            <TouchableOpacity
+                              style={styles.settleButton}
+                              activeOpacity={0.8}
+                              onPress={() =>
+                                openSettleModal({
+                                  fromUser: user,
+                                  toUser: toUser,
+                                  amount: debt.amount,
+                                })
+                              }
+                            >
+                              <Text style={styles.settleButtonText}>
+                                Settle Up
+                              </Text>
+                            </TouchableOpacity>
+                          ) : isCurrentUserDebtor ? (
+                            <View style={styles.settleButtonDisabled}>
+                              <Text style={styles.settleButtonDisabledText}>
+                                Settle Up
+                              </Text>
+                            </View>
+                          ) : null}
                         </AnimatedView>
                       );
                     }),
@@ -409,7 +707,7 @@ export default function GroupDetailScreen({ route, navigation }) {
 
       <AnimatedView
         entering={ZoomIn.duration(400).delay(500)}
-        style={[styles.floatingButtonContainer, { bottom: insets.bottom+35  }]}
+        style={[styles.floatingButtonContainer, { bottom: insets.bottom+20 }]}
       >
         <TouchableOpacity
           style={styles.floatingButton}
@@ -515,6 +813,7 @@ export default function GroupDetailScreen({ route, navigation }) {
           </AnimatedView>
         </KeyboardAvoidingView>
       </Modal>
+      <CustomAlert {...alertProps} />
     </View>
   );
 }
@@ -698,6 +997,19 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "bold",
   },
+  settleButtonDisabled: {
+    backgroundColor: "#F3F4F6",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  settleButtonDisabledText: {
+    color: "#9CA3AF",
+    fontSize: 13,
+    fontWeight: "bold",
+  },
   historyCard: {
     flexDirection: "row",
     alignItems: "center",
@@ -820,5 +1132,33 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontSize: 16,
     fontWeight: "bold",
+  },
+  inlineExportBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.primary + "12",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: COLORS.primary + "20",
+  },
+  inlineExportBtnText: {
+    color: COLORS.primary,
+    fontSize: 12,
+    fontWeight: "750",
+  },
+  inlineCountBadge: {
+    backgroundColor: COLORS.primary + "12",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  inlineCountBadgeText: {
+    color: COLORS.primary,
+    fontSize: 11,
+    fontWeight: "800",
   },
 });

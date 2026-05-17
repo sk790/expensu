@@ -1,5 +1,5 @@
 import React from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { COLORS, SHADOWS } from "../utils/constants";
@@ -72,9 +72,13 @@ export default function GroupSummaryCard({ group, totalExpenses, onAddMember, on
                   { backgroundColor: color + "25", marginLeft: i === 0 ? 0 : -10 },
                 ]}
               >
-                <Text style={[styles.memberAvatarText, { color }]}>
-                  {getInitials(member.name)}
-                </Text>
+                {member.avatar ? (
+                  <Image source={{ uri: member.avatar }} style={styles.memberAvatarImage} />
+                ) : (
+                  <Text style={[styles.memberAvatarText, { color }]}>
+                    {getInitials(member.name)}
+                  </Text>
+                )}
               </View>
             );
           })}
@@ -185,6 +189,11 @@ const styles = StyleSheet.create({
     borderColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
+  },
+  memberAvatarImage: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 16,
   },
   memberAvatarText: {
     fontSize: 11,

@@ -16,6 +16,7 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  Image,
 } from "react-native";
 import Animated, {
   FadeIn,
@@ -59,7 +60,7 @@ export default function GroupsListScreen({ navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [invitationsCount, setInvitationsCount] = useState(0);
-  const { logout, user } = useAuth();
+  const { user } = useAuth();
   const { alertProps, showAlert } = useAlert();
   const insets = useSafeAreaInsets();
 
@@ -204,14 +205,34 @@ export default function GroupsListScreen({ navigation }) {
       >
         <AnimatedView entering={FadeInDown.duration(400)}>
           <View style={styles.headerTop}>
-            <View>
-              <Text style={styles.headerLabel}>
-                {getGreeting().emoji} {getGreeting().text}
-              </Text>
-              <Text style={styles.headerTitle}>
-                {getFirstName(user?.name)} 👋
-              </Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+              <TouchableOpacity
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  navigation.navigate("Profile");
+                }}
+                activeOpacity={0.85}
+              >
+                <View style={styles.avatarContainer}>
+                  {user?.avatar ? (
+                    <Image source={{ uri: user.avatar }} style={styles.headerAvatarImage} />
+                  ) : (
+                    <Text style={styles.avatarText}>
+                      {user?.name ? user.name.charAt(0).toUpperCase() : "U"}
+                    </Text>
+                  )}
+                </View>
+              </TouchableOpacity>
+              <View>
+                <Text style={styles.headerLabel}>
+                  {getGreeting().emoji} {getGreeting().text}
+                </Text>
+                <Text style={styles.headerTitle}>
+                  {getFirstName(user?.name)} 👋
+                </Text>
+              </View>
             </View>
+
             <View style={{ flexDirection: "row", gap: 12 }}>
               <TouchableOpacity
                 style={styles.notificationBtn}
@@ -226,23 +247,6 @@ export default function GroupsListScreen({ navigation }) {
                     <Text style={styles.badgeText}>{invitationsCount}</Text>
                   </View>
                 )}
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.logoutBtn}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  showAlert({
-                    type: "confirm",
-                    title: "Logout",
-                    message: "Are you sure you want to logout?",
-                    buttons: [
-                      { text: "Cancel", style: "cancel" },
-                      { text: "Logout", style: "destructive", onPress: logout },
-                    ],
-                  });
-                }}
-              >
-                <Ionicons name="log-out-outline" size={22} color="#FFF" />
               </TouchableOpacity>
             </View>
           </View>
@@ -380,29 +384,31 @@ export default function GroupsListScreen({ navigation }) {
         }
       />
 
-      <AnimatedView
-        entering={ZoomIn.duration(400).delay(300)}
-        style={[styles.fabContainer, { bottom: insets.bottom + 16 }]}
-      >
-        <TouchableOpacity
-          style={styles.fab}
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-            navigation.navigate("CreateGroup");
-          }}
-          activeOpacity={0.85}
+      {groups && groups.length > 0 && (
+        <AnimatedView
+          entering={ZoomIn.duration(400).delay(300)}
+          style={[styles.fabContainer, { bottom: insets.bottom+16 }]}
         >
-          <LinearGradient
-            colors={[ACCENT, ACCENT2]}
-            style={styles.fabGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
+          <TouchableOpacity
+            style={styles.fab}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              navigation.navigate("CreateGroup");
+            }}
+            activeOpacity={0.85}
           >
-            <Ionicons name="add" size={24} color="#FFF" />
-            <Text style={styles.fabLabel}>Create Group</Text>
-          </LinearGradient>
-        </TouchableOpacity>
-      </AnimatedView>
+            <LinearGradient
+              colors={[ACCENT, ACCENT2]}
+              style={styles.fabGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <Ionicons name="add" size={24} color="#FFF" />
+              <Text style={styles.fabLabel}>Create Group</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </AnimatedView>
+      )}
     </View>
   );
 }
@@ -444,13 +450,25 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     letterSpacing: -0.5,
   },
-  logoutBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: "rgba(255,255,255,0.2)",
+  avatarContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "rgba(255, 255, 255, 0.22)",
     justifyContent: "center",
     alignItems: "center",
+    borderWidth: 1.5,
+    borderColor: "rgba(255, 255, 255, 0.35)",
+  },
+  avatarText: {
+    color: "#FFFFFF",
+    fontSize: 20,
+    fontWeight: "800",
+  },
+  headerAvatarImage: {
+    width: 45,
+    height: 45,
+    borderRadius: 22.5,
   },
   notificationBtn: {
     width: 42,

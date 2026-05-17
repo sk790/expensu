@@ -21,10 +21,11 @@ export function useAlert() {
     title: "",
     message: "",
     buttons: [],
+    dismissible: true,
   });
 
-  const showAlert = useCallback(({ type = "info", title = "", message = "", buttons = [] }) => {
-    setAlertConfig({ visible: true, type, title, message, buttons });
+  const showAlert = useCallback(({ type = "info", title = "", message = "", buttons = [], dismissible = true }) => {
+    setAlertConfig({ visible: true, type, title, message, buttons, dismissible });
   }, []);
 
   const hideAlert = useCallback(() => {
@@ -37,6 +38,7 @@ export function useAlert() {
     title: alertConfig.title,
     message: alertConfig.message,
     buttons: alertConfig.buttons,
+    dismissible: alertConfig.dismissible,
     onDismiss: hideAlert,
   };
 

@@ -43,8 +43,13 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
-  const updateUser = (updatedUser) => {
+  const updateUser = async (updatedUser) => {
     setUser(updatedUser);
+    try {
+      await storage.setUser(updatedUser);
+    } catch (error) {
+      console.error("Failed to save updated user to storage:", error);
+    }
   };
 
   return (

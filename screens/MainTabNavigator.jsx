@@ -16,7 +16,7 @@ import GroupDetailsScreen from "./groups/GroupDetailsScreen";
 import GroupMembersScreen from "./groups/GroupMembersScreen";
 import GroupsListScreen from "./groups/GroupsListScreen";
 import UserExpensesScreen from "./groups/UserExpensesScreen";
-import AnalyticsScreen from "./home/AnalyticsScreen";
+import HistoryScreen from "./groups/HistoryScreen";
 import ProfileScreen from "./home/ProfileScreen";
 import TermsOfServiceScreen from "./home/TermsOfServiceScreen";
 import HelpCenterScreen from "./home/HelpCenterScreen";
@@ -162,7 +162,7 @@ export default function MainTabNavigator() {
         tabBarIcon: ({ focused, color, size }) => {
           const icons = {
             Groups: focused ? "people" : "people-outline",
-            Stats: focused ? "bar-chart" : "bar-chart-outline",
+            History: focused ? "receipt" : "receipt-outline",
             Profile: focused ? "person" : "person-outline",
           };
           return (
@@ -196,7 +196,7 @@ export default function MainTabNavigator() {
       })}
     >
       <Tab.Screen name="Groups" component={GroupsStack} />
-      <Tab.Screen name="Stats" component={AnalyticsScreen} />
+      <Tab.Screen name="History" component={HistoryScreen} />
       <Tab.Screen name="Profile" component={ProfileStack} />
     </Tab.Navigator>
   );

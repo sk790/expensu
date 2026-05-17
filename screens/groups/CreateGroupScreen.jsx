@@ -16,8 +16,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { groupService, userService } from "../../services/authService";
-import { COLORS } from "../../utils/constants";
-import { FadeInDown, FadeInUp } from "react-native-reanimated";
+import { COLORS, SHADOWS } from "../../utils/constants";
+import { FadeInDown, FadeInUp, ZoomIn } from "react-native-reanimated";
 import AnimatedView from "../../components/AnimatedView";
 import * as Haptics from "expo-haptics";
 import CustomAlert from "../../components/CustomAlert";
@@ -26,6 +26,7 @@ import { useAlert } from "../../hooks/useAlert";
 export default function CreateGroupScreen({ navigation, route }) {
   const groupToEdit = route.params?.group;
   const isEditing = !!groupToEdit;
+  const insets = useSafeAreaInsets();
 
   const [groupName, setGroupName] = useState(groupToEdit?.name || "");
   const [loading, setLoading] = useState(false);
@@ -71,8 +72,10 @@ export default function CreateGroupScreen({ navigation, route }) {
   const toggleMember = (user) => {
     const isSelected = selectedMembers.some((m) => m.id === user.id);
     if (isSelected) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       setSelectedMembers(selectedMembers.filter((m) => m.id !== user.id));
     } else {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       setSelectedMembers([...selectedMembers, user]);
       setSearchQuery("");
       setSearchResults([]);
@@ -147,54 +150,74 @@ export default function CreateGroupScreen({ navigation, route }) {
     }
   };
 
+  // Determine active icon / letter preview for premium interactivity
+  const renderGroupIcon = () => {
+    const trimmed = groupName.trim();
+    if (trimmed.length > 0) {
+      return (
+        <Text style={styles.iconLetter}>
+          {trimmed.charAt(0).toUpperCase()}
+        </Text>
+      );
+    }
+    return (
+      <Ionicons
+        name={isEditing ? "create" : "people"}
+        size={34}
+        color="#FFF"
+      />
+    );
+  };
+
   return (
     <KeyboardAvoidingView
       style={styles.root}
-      behavior="padding"
-      keyboardVerticalOffset={Platform.OS === "ios" ? 100 : 20}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 88 : 0}
     >
       <StatusBar barStyle="dark-content" />
       <CustomAlert {...alertProps} />
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scroll}
+        contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 40 }]}
         keyboardShouldPersistTaps="handled"
       >
-        <AnimatedView entering={FadeInDown.duration(400).delay(80)}>
+        <AnimatedView entering={FadeInDown.duration(400).delay(50)}>
           <View style={styles.heroSection}>
             <LinearGradient
               colors={[COLORS.gradientStart, COLORS.gradientEnd]}
-              style={styles.iconCircle}
+              style={[styles.iconCircle, SHADOWS.medium]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
             >
-              <Ionicons
-                name={isEditing ? "create" : "people"}
-                size={34}
-                color="#FFF"
-              />
+              {renderGroupIcon()}
             </LinearGradient>
             <Text style={styles.heroTitle}>
-              {isEditing ? "Edit Group" : "Create a Group"}
+              {isEditing ? "Edit Group" : "Create Group"}
             </Text>
             <Text style={styles.heroSubtitle}>
               {isEditing
                 ? "Update your group details below"
-                : "Start a shared space to track expenses with friends"}
+                : "Start a shared space to split expenses with friends"}
             </Text>
           </View>
         </AnimatedView>
 
+        {/* Input Card */}
         <AnimatedView
-          entering={FadeInDown.duration(400).delay(160)}
-          style={styles.card}
+          entering={FadeInDown.duration(400).delay(120)}
+          style={[styles.card, SHADOWS.soft]}
         >
-          <Text style={styles.inputLabel}>Group Name</Text>
+          <View style={styles.inputHeader}>
+            <Text style={styles.inputLabel}>Group Name</Text>
+            <Text style={styles.charCount}>{groupName.length}/50</Text>
+          </View>
+
           <View
             style={[
               styles.inputWrap,
-              focused && { borderColor: COLORS.primary },
+              focused && styles.inputWrapFocused,
             ]}
           >
             <Ionicons
@@ -205,8 +228,8 @@ export default function CreateGroupScreen({ navigation, route }) {
             />
             <TextInput
               style={styles.input}
-              placeholder="e.g. Goa Trip, Flat Mates..."
-              placeholderTextColor="#999"
+              placeholder="e.g. Goa Trip, Flat Mates, Dinner..."
+              placeholderTextColor="#9CA3AF"
               value={groupName}
               onChangeText={setGroupName}
               editable={!loading}
@@ -214,86 +237,121 @@ export default function CreateGroupScreen({ navigation, route }) {
               onBlur={() => setFocused(false)}
               maxLength={50}
             />
+            {groupName.length > 0 && (
+              <TouchableOpacity
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setGroupName("");
+                }}
+                style={styles.clearBtn}
+              >
+                <Ionicons name="close-circle" size={18} color={COLORS.gray} />
+              </TouchableOpacity>
+            )}
           </View>
-          <Text style={styles.charCount}>{groupName.length}/50</Text>
         </AnimatedView>
 
+        {/* Members Card */}
         {!isEditing && (
           <AnimatedView
-            entering={FadeInDown.duration(400).delay(200)}
-            style={styles.card}
+            entering={FadeInDown.duration(400).delay(180)}
+            style={[styles.card, SHADOWS.soft]}
           >
             <Text style={styles.inputLabel}>Add Members (Optional)</Text>
             <View style={styles.searchWrap}>
               <Ionicons
-                name="search"
+                name="search-outline"
                 size={18}
                 color={COLORS.gray}
-                style={styles.inputIcon}
+                style={styles.searchIcon}
               />
               <TextInput
                 style={styles.searchInput}
-                placeholder="Search by email..."
-                placeholderTextColor="#999"
+                placeholder="Search friend by email..."
+                placeholderTextColor="#9CA3AF"
                 value={searchQuery}
                 onChangeText={handleSearch}
                 autoCapitalize="none"
+                keyboardType="email-address"
               />
               {searching && (
-                <ActivityIndicator size="small" color={COLORS.primary} />
+                <ActivityIndicator
+                  size="small"
+                  color={COLORS.primary}
+                  style={{ marginRight: 12 }}
+                />
               )}
             </View>
 
             {searchResults.length > 0 && (
               <View style={styles.resultsList}>
-                {searchResults.map((user) => (
-                  <TouchableOpacity
-                    key={user.id}
-                    style={styles.resultItem}
-                    onPress={() => toggleMember(user)}
-                  >
-                    <View style={styles.resultAvatar}>
-                      <Text style={styles.resultAvatarText}>{user.name[0]}</Text>
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.resultName}>{user.name}</Text>
-                      <Text style={styles.resultEmail}>{user.email}</Text>
-                    </View>
-                    <Ionicons
-                      name={
-                        selectedMembers.some((m) => m.id === user.id)
-                          ? "checkmark-circle"
-                          : "add-circle-outline"
-                      }
-                      size={24}
-                      color={COLORS.primary}
-                    />
-                  </TouchableOpacity>
-                ))}
+                {searchResults.map((user) => {
+                  const isAlreadySelected = selectedMembers.some((m) => m.id === user.id);
+                  return (
+                    <TouchableOpacity
+                      key={user.id}
+                      style={styles.resultItem}
+                      onPress={() => toggleMember(user)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.resultAvatar}>
+                        <Text style={styles.resultAvatarText}>
+                          {user.name.charAt(0).toUpperCase()}
+                        </Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.resultName}>{user.name}</Text>
+                        <Text style={styles.resultEmail}>{user.email}</Text>
+                      </View>
+                      <Ionicons
+                        name={isAlreadySelected ? "checkmark-circle" : "add-circle-outline"}
+                        size={24}
+                        color={isAlreadySelected ? COLORS.success : COLORS.primary}
+                      />
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
             )}
 
+            {/* Premium iMessage/WhatsApp Style Selected Members Avatar List */}
             {selectedMembers.length > 0 && (
-              <View style={styles.selectedList}>
+              <View style={styles.selectedContainer}>
                 <Text style={styles.selectedTitle}>
-                  Selected Members ({selectedMembers.length})
+                  Added Members ({selectedMembers.length})
                 </Text>
                 <ScrollView
                   horizontal
                   showsHorizontalScrollIndicator={false}
-                  style={styles.selectedScroll}
+                  contentContainerStyle={styles.selectedAvatarScroll}
                 >
                   {selectedMembers.map((member) => (
-                    <View key={member.id} style={styles.selectedChip}>
-                      <Text style={styles.chipText}>{member.name}</Text>
-                      <TouchableOpacity onPress={() => toggleMember(member)}>
-                        <Ionicons
-                          name="close-circle"
-                          size={18}
-                          color={COLORS.gray}
-                        />
-                      </TouchableOpacity>
-                    </View>
+                    <AnimatedView
+                      entering={ZoomIn.duration(300)}
+                      key={member.id}
+                      style={styles.selectedUserCard}
+                    >
+                      <View style={[styles.squircleAvatar, SHADOWS.soft]}>
+                        <LinearGradient
+                          colors={[COLORS.primary + "15", COLORS.secondary + "15"]}
+                          style={styles.squircleGradient}
+                        >
+                          <Text style={styles.squircleAvatarText}>
+                            {member.name.charAt(0).toUpperCase()}
+                          </Text>
+                        </LinearGradient>
+                        <TouchableOpacity
+                          style={styles.removeBadge}
+                          onPress={() => toggleMember(member)}
+                          activeOpacity={0.7}
+                        >
+                          <Ionicons name="close" size={10} color="#FFF" />
+                        </TouchableOpacity>
+                      </View>
+                      <Text style={styles.selectedUserName} numberOfLines={1}>
+                        {member.name.split(" ")[0]}
+                      </Text>
+                    </AnimatedView>
                   ))}
                 </ScrollView>
               </View>
@@ -301,7 +359,8 @@ export default function CreateGroupScreen({ navigation, route }) {
           </AnimatedView>
         )}
 
-        <AnimatedView entering={FadeInUp.duration(400).delay(320)}>
+        {/* Action Button */}
+        <AnimatedView entering={FadeInUp.duration(400).delay(250)}>
           <TouchableOpacity
             style={[styles.btnWrapper, loading && { opacity: 0.7 }]}
             onPress={handleAction}
@@ -322,7 +381,7 @@ export default function CreateGroupScreen({ navigation, route }) {
                     {isEditing ? "Save Changes" : "Create Group"}
                   </Text>
                   <Ionicons
-                    name={isEditing ? "checkmark" : "arrow-forward"}
+                    name={isEditing ? "checkmark-circle" : "arrow-forward"}
                     size={20}
                     color="#FFF"
                     style={{ marginLeft: 8 }}
@@ -338,69 +397,86 @@ export default function CreateGroupScreen({ navigation, route }) {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#F4F5FA" },
-  scroll: { padding: 24, paddingBottom: 120, flexGrow: 1 },
+  root: { flex: 1, backgroundColor: "#F8F9FD" },
+  scroll: { padding: 20, flexGrow: 1 },
 
-  heroSection: { alignItems: "center", marginBottom: 32, marginTop: 8 },
+  heroSection: { alignItems: "center", marginBottom: 24, marginTop: 4 },
   iconCircle: {
-    width: 80,
-    height: 80,
+    width: 76,
+    height: 76,
     borderRadius: 24,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 16,
+    marginBottom: 12,
+  },
+  iconLetter: {
+    fontSize: 32,
+    fontWeight: "900",
+    color: "#FFF",
   },
   heroTitle: {
-    fontSize: 26,
+    fontSize: 24,
     fontWeight: "800",
     color: COLORS.dark,
-    marginBottom: 8,
+    marginBottom: 6,
   },
   heroSubtitle: {
-    fontSize: 14,
+    fontSize: 13,
     color: COLORS.gray,
     textAlign: "center",
-    lineHeight: 20,
+    lineHeight: 18,
+    paddingHorizontal: 16,
   },
 
   card: {
     backgroundColor: "#FFF",
     borderRadius: 20,
-    padding: 20,
+    padding: 16,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: "#F0F0F0",
+    borderColor: "#EBEBF2",
+  },
+  inputHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
   },
   inputLabel: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "700",
-    color: COLORS.gray,
-    marginBottom: 10,
+    color: COLORS.dark,
     textTransform: "uppercase",
-    letterSpacing: 0.5,
+    letterSpacing: 0.8,
   },
   inputWrap: {
     flexDirection: "row",
     alignItems: "center",
     borderWidth: 1.5,
-    borderColor: "#EBEBF0",
+    borderColor: "#F0F0F5",
     borderRadius: 14,
-    backgroundColor: "#FAFAFE",
-    overflow: "hidden",
+    backgroundColor: "#FAFAFD",
+    paddingHorizontal: 12,
   },
-  inputIcon: { paddingHorizontal: 14 },
+  inputWrapFocused: {
+    borderColor: COLORS.primary,
+    backgroundColor: "#FFF",
+  },
+  inputIcon: { marginRight: 8 },
   input: {
     flex: 1,
     fontSize: 15,
     color: COLORS.dark,
-    paddingVertical: 16,
-    paddingRight: 16,
+    paddingVertical: 14,
+    fontWeight: "500",
+  },
+  clearBtn: {
+    padding: 4,
   },
   charCount: {
-    fontSize: 12,
-    color: COLORS.secondary,
-    textAlign: "right",
-    marginTop: 8,
+    fontSize: 11,
+    color: COLORS.gray,
+    fontWeight: "600",
   },
 
   btnWrapper: { borderRadius: 16, overflow: "hidden" },
@@ -408,67 +484,112 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 18,
+    paddingVertical: 16,
   },
-  btnText: { color: "#FFF", fontSize: 17, fontWeight: "800" },
+  btnText: { color: "#FFF", fontSize: 16, fontWeight: "850" },
 
   searchWrap: {
     flexDirection: "row",
     alignItems: "center",
     borderWidth: 1.5,
-    borderColor: "#EBEBF0",
+    borderColor: "#F0F0F5",
     borderRadius: 14,
-    backgroundColor: "#FAFAFE",
-    marginBottom: 10,
+    backgroundColor: "#FAFAFD",
+    paddingLeft: 12,
+    marginTop: 8,
   },
+  searchIcon: { marginRight: 8 },
   searchInput: {
     flex: 1,
-    fontSize: 15,
+    fontSize: 14,
     color: COLORS.dark,
-    paddingVertical: 12,
+    paddingVertical: 10,
+    fontWeight: "500",
   },
   resultsList: {
-    backgroundColor: "#F8F9FF",
-    borderRadius: 12,
-    padding: 10,
-    marginBottom: 16,
+    backgroundColor: "#F9FAFC",
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: "#EBEBF2",
   },
   resultItem: {
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: "#EEE",
+    borderBottomWidth: 0.5,
+    borderBottomColor: "#EBEBF2",
   },
   resultAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: COLORS.primary + "20",
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    backgroundColor: COLORS.primary + "15",
     alignItems: "center",
     justifyContent: "center",
     marginRight: 12,
   },
-  resultAvatarText: { color: COLORS.primary, fontWeight: "bold" },
-  resultName: { fontSize: 14, fontWeight: "700", color: COLORS.dark },
-  resultEmail: { fontSize: 12, color: COLORS.gray },
-  selectedList: { marginTop: 10 },
+  resultAvatarText: { color: COLORS.primary, fontWeight: "bold", fontSize: 14 },
+  resultName: { fontSize: 13, fontWeight: "700", color: COLORS.dark },
+  resultEmail: { fontSize: 11, color: COLORS.gray, marginTop: 1 },
+
+  selectedContainer: { marginTop: 16 },
   selectedTitle: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: COLORS.gray,
+    fontSize: 11,
+    fontWeight: "750",
+    color: COLORS.dark,
     marginBottom: 10,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
-  selectedScroll: { flexDirection: "row" },
-  selectedChip: {
-    flexDirection: "row",
+  selectedAvatarScroll: { paddingVertical: 4 },
+  selectedUserCard: {
     alignItems: "center",
-    backgroundColor: "#F0F0FF",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    marginRight: 8,
-    gap: 6,
+    marginRight: 16,
+    width: 58,
   },
-  chipText: { fontSize: 13, color: COLORS.primary, fontWeight: "600" },
+  squircleAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    position: "relative",
+    backgroundColor: "#FFF",
+  },
+  squircleGradient: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: COLORS.primary + "30",
+  },
+  squircleAvatarText: {
+    color: COLORS.primary,
+    fontWeight: "700",
+    fontSize: 16,
+  },
+  removeBadge: {
+    position: "absolute",
+    top: -4,
+    right: -4,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: COLORS.danger,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: "#FFF",
+  },
+  selectedUserName: {
+    fontSize: 10,
+    color: COLORS.dark,
+    fontWeight: "600",
+    marginTop: 6,
+    textAlign: "center",
+    width: "100%",
+  },
 });

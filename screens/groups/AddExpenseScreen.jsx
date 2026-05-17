@@ -9,7 +9,7 @@ import {
   TouchableOpacity,
   View,
   KeyboardAvoidingView,
-  Platform,
+  Platform, Image,
 } from "react-native";
 import { groupService } from "../../services/authService";
 import { COLORS } from "../../utils/constants";
@@ -19,6 +19,7 @@ import * as Haptics from "expo-haptics";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import CustomAlert from "../../components/CustomAlert";
 import { useAlert } from "../../hooks/useAlert";
+import { useAuth } from "../../context/AuthContext";
 
 const getInitials = (name) => {
   if (!name) return "?";
@@ -26,12 +27,23 @@ const getInitials = (name) => {
 };
 
 export default function AddExpenseScreen({ route, navigation }) {
-  const { groupId, members, isEditing, expenseData } = route.params;
-  const { alertProps, showAlert } = useAlert();
+  const { groupId, members, isEditing, expenseData } = route.params; const uniqueMembers = React.useMemo(() => { const seen = new Set(); const result = []; (members || []).forEach((m) => { if (m && m._id && !seen.has(m._id)) { seen.add(m._id); result.push(m); } }); return result; }, [members]);
+  const { alertProps, showAlert } = useAlert(); const { user: currentUser } = useAuth();
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
+  const [paidBy, setPaidBy] = useState(() => {
+    if (isEditing && expenseData && expenseData.paidBy) {
+      return expenseData.paidBy._id || expenseData.paidBy;
+    }
+    const currentUserId = currentUser?.id || currentUser?._id;
+    if (uniqueMembers.length <= 4 && currentUserId) {
+      return currentUserId;
+    }
+    return currentUserId || (uniqueMembers[0]?._id || "");
+  });
+  const [dropdownOpen, setDropdownOpen] = useState(false);
   const [selectedMembers, setSelectedMembers] = useState(
-    members.reduce((acc, member) => ({ ...acc, [member._id]: true }), {}),
+    uniqueMembers.reduce((acc, member) => ({ ...acc, [member._id]: true }), {}),
   );
   const [splitType, setSplitType] = useState("equal");
   const [customAmounts, setCustomAmounts] = useState({});
@@ -41,7 +53,7 @@ export default function AddExpenseScreen({ route, navigation }) {
   useEffect(() => {
     if (isEditing && expenseData) {
       setAmount(expenseData.amount.toString());
-      setDescription(expenseData.description);
+      setDescription(expenseData.description); if (expenseData.paidBy) { setPaidBy(expenseData.paidBy._id || expenseData.paidBy); }
 
       const isCustom = expenseData.splitBetween.some(
         (item) => typeof item === "object" && item.amount,
@@ -59,14 +71,23 @@ export default function AddExpenseScreen({ route, navigation }) {
         setSelectedMembers(memberSelection);
         setCustomAmounts(amounts);
       } else {
-        const memberSelection = members.reduce((acc, member) => {
+        const memberSelection = uniqueMembers.reduce((acc, member) => {
           acc[member._id] = expenseData.splitBetween.includes(member._id);
           return acc;
         }, {});
         setSelectedMembers(memberSelection);
       }
+    } else {
+      const currentUserId = currentUser?.id || currentUser?._id;
+      if (uniqueMembers.length <= 4 && currentUserId) {
+        setPaidBy(currentUserId);
+      } else if (currentUserId) {
+        setPaidBy(currentUserId);
+      } else if (uniqueMembers && uniqueMembers.length > 0) {
+        setPaidBy(uniqueMembers[0]._id);
+      }
     }
-  }, [isEditing, expenseData, members]);
+  }, [isEditing, expenseData, uniqueMembers, currentUser]);
 
   const handleCustomAmountChange = (memberId, value) => {
     setCustomAmounts((prev) => ({
@@ -128,23 +149,27 @@ export default function AddExpenseScreen({ route, navigation }) {
           expenseData.id,
           parseFloat(amount),
           finalSplitData,
-          description.trim(),
+          description.trim(), paidBy,
         );
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        showAlert({ type: "success", title: "Expense Updated!", message: "Your expense has been updated successfully.", buttons: [
-          { text: "OK", onPress: () => navigation.goBack() },
-        ]});
+        showAlert({
+          type: "success", title: "Expense Updated!", message: "Your expense has been updated successfully.", dismissible: false, buttons: [
+            { text: "OK", onPress: () => navigation.goBack() },
+          ]
+        });
       } else {
         await groupService.addExpense(
           groupId,
           parseFloat(amount),
           finalSplitData,
-          description.trim(),
+          description.trim(), paidBy,
         );
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        showAlert({ type: "success", title: "Expense Added!", message: "The expense has been added and split successfully.", buttons: [
-          { text: "Great!", onPress: () => navigation.goBack() },
-        ]});
+        showAlert({
+          type: "success", title: "Expense Added!", message: "The expense has been added and split successfully.", dismissible: false, buttons: [
+            { text: "Great!", onPress: () => navigation.goBack() },
+          ]
+        });
       }
     } catch (error) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -183,25 +208,27 @@ export default function AddExpenseScreen({ route, navigation }) {
   }
 
   return (
-    <KeyboardAvoidingView 
-      style={styles.container} 
+    <KeyboardAvoidingView
+      style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 20}
     >
       <CustomAlert {...alertProps} />
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-        
+
         {/* Header / Title Area */}
         <AnimatedView entering={FadeInDown.duration(400).delay(100)} style={styles.headerContainer}>
           <View style={styles.iconCircle}>
-            <MaterialIcons name="receipt-long" size={32} color={COLORS.primary} />
+            <MaterialIcons name="receipt-long" size={24} color={COLORS.primary} />
           </View>
-          <Text style={styles.headerTitle}>
-            {isEditing ? "Edit Expense" : "New Expense"}
-          </Text>
-          <Text style={styles.headerSubtitle}>
-            Enter the details below to track your spending
-          </Text>
+          <View style={styles.headerTextContainer}>
+            <Text style={styles.headerTitle}>
+              {isEditing ? "Edit Expense" : "New Expense"}
+            </Text>
+            <Text style={styles.headerSubtitle}>
+              Enter details below to track spending
+            </Text>
+          </View>
         </AnimatedView>
 
         {/* Input Form */}
@@ -238,6 +265,131 @@ export default function AddExpenseScreen({ route, navigation }) {
           </View>
         </AnimatedView>
 
+        {/* Paid By Member Selector */}
+        <AnimatedView entering={FadeInDown.duration(400).delay(250)}>
+          <Text style={styles.sectionLabel}>Paid By</Text>
+          {uniqueMembers.length <= 4 ? (
+            <View style={styles.payerCard}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.payerScroll}>
+                {uniqueMembers.map((member) => {
+                  const isSelected = paidBy === member._id;
+                  const memberInitial = (member.name ?? member.email ?? "?")[0].toUpperCase();
+                  const displayName = member._id === (currentUser?.id || currentUser?._id) ? "You" : member.name.split(" ")[0];
+                  return (
+                    <TouchableOpacity
+                      key={member._id}
+                      style={[styles.payerBubbleContainer, isSelected && styles.payerBubbleSelected]}
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        setPaidBy(member._id);
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.payerAvatarWrapper}>
+                        {member.avatar ? (
+                          <Image source={{ uri: member.avatar }} style={styles.payerAvatarImage} />
+                        ) : (
+                          <View style={[styles.payerAvatarFallback, { backgroundColor: COLORS.primary + "15" }]}>
+                            <Text style={styles.payerAvatarText}>{memberInitial}</Text>
+                          </View>
+                        )}
+                        {isSelected && (
+                          <AnimatedView entering={ZoomIn} style={styles.payerBadge}>
+                            <Ionicons name="checkmark-circle" size={16} color={COLORS.success} />
+                          </AnimatedView>
+                        )}
+                      </View>
+                      <Text style={[styles.payerName, isSelected && styles.payerNameSelected]} numberOfLines={1}>
+                        {displayName}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          ) : (
+            <View style={styles.dropdownContainer}>
+              <TouchableOpacity
+                style={[styles.dropdownHeader, dropdownOpen && styles.dropdownHeaderActive]}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setDropdownOpen(!dropdownOpen);
+                }}
+                activeOpacity={0.8}
+              >
+                <View style={styles.selectedPayerInfo}>
+                  {(() => {
+                    const selectedPayerObj = uniqueMembers.find((m) => m._id === paidBy) || uniqueMembers[0];
+                    const selectedPayerInitial = (selectedPayerObj?.name ?? selectedPayerObj?.email ?? "?")[0].toUpperCase();
+                    const selectedPayerDisplayName = selectedPayerObj?._id === (currentUser?.id || currentUser?._id) ? "You" : selectedPayerObj?.name;
+                    return (
+                      <>
+                        {selectedPayerObj?.avatar ? (
+                          <Image source={{ uri: selectedPayerObj.avatar }} style={styles.dropdownAvatarImage} />
+                        ) : (
+                          <View style={[styles.dropdownAvatarFallback, { backgroundColor: COLORS.primary + "15" }]}>
+                            <Text style={styles.dropdownAvatarText}>{selectedPayerInitial}</Text>
+                          </View>
+                        )}
+                        <View style={styles.selectedPayerTextContainer}>
+                          <Text style={styles.dropdownSelectedLabel}>Who Paid?</Text>
+                          <Text style={styles.dropdownSelectedValue}>{selectedPayerDisplayName}</Text>
+                        </View>
+                      </>
+                    );
+                  })()}
+                </View>
+                <Ionicons
+                  name={dropdownOpen ? "chevron-up" : "chevron-down"}
+                  size={20}
+                  color={COLORS.gray}
+                />
+              </TouchableOpacity>
+
+              {dropdownOpen && (
+                <AnimatedView entering={FadeInUp.duration(200)} style={styles.dropdownList}>
+                  {uniqueMembers.map((member, index) => {
+                    const isSelected = paidBy === member._id;
+                    const memberInitial = (member.name ?? member.email ?? "?")[0].toUpperCase();
+                    return (
+                      <TouchableOpacity
+                        key={member._id}
+                        style={[
+                          styles.dropdownItem,
+                          isSelected && styles.dropdownItemActive,
+                          index !== uniqueMembers.length - 1 && styles.dropdownItemBorder,
+                        ]}
+                        onPress={() => {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                          setPaidBy(member._id);
+                          setDropdownOpen(false);
+                        }}
+                        activeOpacity={0.7}
+                      >
+                        <View style={styles.dropdownItemLeft}>
+                          {member.avatar ? (
+                            <Image source={{ uri: member.avatar }} style={styles.dropdownItemAvatarImage} />
+                          ) : (
+                            <View style={[styles.dropdownItemAvatarFallback, { backgroundColor: COLORS.primary + "15" }]}>
+                              <Text style={styles.dropdownItemAvatarText}>{memberInitial}</Text>
+                            </View>
+                          )}
+                          <Text style={[styles.dropdownItemName, isSelected && styles.dropdownItemNameSelected]}>
+                            {member._id === (currentUser?.id || currentUser?._id) ? "You" : member.name}
+                          </Text>
+                        </View>
+                        {isSelected && (
+                          <Ionicons name="checkmark" size={20} color={COLORS.primary} />
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </AnimatedView>
+              )}
+            </View>
+          )}
+        </AnimatedView>
+
         {/* Split Type Toggle */}
         <AnimatedView entering={FadeInDown.duration(400).delay(300)}>
           <Text style={styles.sectionLabel}>Split Method</Text>
@@ -254,7 +406,7 @@ export default function AddExpenseScreen({ route, navigation }) {
                 Equally
               </Text>
             </TouchableOpacity>
-            
+
             <TouchableOpacity
               style={styles.splitTypeButton}
               onPress={() => handleSplitTypeChange("custom")}
@@ -276,15 +428,15 @@ export default function AddExpenseScreen({ route, navigation }) {
             <Text style={styles.sectionLabel}>Split With</Text>
             <Text style={styles.membersCount}>{selectedCount} selected</Text>
           </View>
-          
+
           <View style={styles.membersCard}>
-            {members.map((member, index) => (
-              <AnimatedView 
-                key={member._id} 
+            {uniqueMembers.map((member, index) => (
+              <AnimatedView
+                key={member._id}
                 layout={Layout.springify()}
                 style={[
-                  styles.memberRow, 
-                  index !== members.length - 1 && styles.memberRowBorder
+                  styles.memberRow,
+                  index !== uniqueMembers.length - 1 && styles.memberRowBorder
                 ]}
               >
                 <View style={styles.memberInfo}>
@@ -340,10 +492,10 @@ export default function AddExpenseScreen({ route, navigation }) {
           {amount && splitType === "custom" && (
             <View style={[styles.summaryCard, Math.abs(remaining) > 0.01 ? styles.summaryError : styles.summarySuccess]}>
               <View style={styles.summaryIcon}>
-                <Ionicons 
-                  name={Math.abs(remaining) > 0.01 ? "alert-circle" : "checkmark-circle"} 
-                  size={24} 
-                  color={Math.abs(remaining) > 0.01 ? COLORS.danger : COLORS.success} 
+                <Ionicons
+                  name={Math.abs(remaining) > 0.01 ? "alert-circle" : "checkmark-circle"}
+                  size={24}
+                  color={Math.abs(remaining) > 0.01 ? COLORS.danger : COLORS.success}
                 />
               </View>
               <View style={styles.summaryTextContainer}>
@@ -384,12 +536,205 @@ export default function AddExpenseScreen({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
+  dropdownContainer: {
+    backgroundColor: COLORS.white,
+    borderRadius: 16,
+    marginBottom: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 3,
+    overflow: "hidden",
+  },
+  dropdownHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 12,
+    backgroundColor: COLORS.white,
+  },
+  dropdownHeaderActive: {
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
+  },
+  selectedPayerInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  dropdownAvatarImage: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: "#F3F4F6",
+  },
+  dropdownAvatarFallback: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dropdownAvatarText: {
+    fontSize: 14,
+    fontWeight: "bold",
+    color: COLORS.primary,
+  },
+  selectedPayerTextContainer: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  dropdownSelectedLabel: {
+    fontSize: 10,
+    color: COLORS.gray,
+    textTransform: "uppercase",
+    fontWeight: "700",
+    letterSpacing: 0.5,
+    marginBottom: 1,
+  },
+  dropdownSelectedValue: {
+    fontSize: 14,
+    fontWeight: "bold",
+    color: COLORS.dark,
+  },
+  dropdownList: {
+    backgroundColor: "#FAFAFA",
+    paddingHorizontal: 8,
+    paddingBottom: 8,
+  },
+  dropdownItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+    marginVertical: 2,
+  },
+  dropdownItemActive: {
+    backgroundColor: COLORS.primary + "08",
+  },
+  dropdownItemBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
+  },
+  dropdownItemLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  dropdownItemAvatarImage: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#F3F4F6",
+  },
+  dropdownItemAvatarFallback: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dropdownItemAvatarText: {
+    fontSize: 12,
+    fontWeight: "bold",
+    color: COLORS.primary,
+  },
+  dropdownItemName: {
+    fontSize: 14,
+    color: COLORS.dark,
+    marginLeft: 10,
+    fontWeight: "500",
+  },
+  dropdownItemNameSelected: {
+    fontWeight: "bold",
+    color: COLORS.primary,
+  },
+  payerCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: 16,
+    padding: 12,
+    marginBottom: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  payerScroll: {
+    paddingHorizontal: 4,
+  },
+  payerBubbleContainer: {
+    alignItems: "center",
+    marginRight: 12,
+    paddingHorizontal: 6,
+    paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: "transparent",
+    width: 68,
+  },
+  payerBubbleSelected: {
+    borderColor: COLORS.primary + "30",
+    backgroundColor: COLORS.primary + "08",
+  },
+  payerAvatarWrapper: {
+    position: "relative",
+    marginBottom: 6,
+  },
+  payerAvatarImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#F3F4F6",
+  },
+  payerAvatarFallback: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  payerAvatarText: {
+    fontSize: 14,
+    fontWeight: "bold",
+    color: COLORS.primary,
+  },
+  payerBadge: {
+    position: "absolute",
+    bottom: -2,
+    right: -2,
+    backgroundColor: COLORS.white,
+    borderRadius: 8,
+    width: 16,
+    height: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  payerName: {
+    fontSize: 11,
+    color: COLORS.gray,
+    fontWeight: "500",
+    textAlign: "center",
+    width: "100%",
+  },
+  payerNameSelected: {
+    color: COLORS.primary,
+    fontWeight: "bold",
+  },
   container: {
     flex: 1,
     backgroundColor: "#F8F9FA",
   },
   content: {
-    padding: 20,
+    padding: 16,
     flexGrow: 1,
   },
   loadingContainer: {
@@ -399,35 +744,40 @@ const styles = StyleSheet.create({
     backgroundColor: "#F8F9FA",
   },
   headerContainer: {
+    flexDirection: "row",
     alignItems: "center",
-    marginTop: 10,
-    marginBottom: 24,
+    marginTop: 4,
+    marginBottom: 16,
+    paddingHorizontal: 4,
   },
   iconCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: COLORS.primary + '15',
+    width: 46,
+    height: 46,
+    borderRadius: 14,
+    backgroundColor: COLORS.primary + '12',
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 16,
+    marginRight: 12,
+  },
+  headerTextContainer: {
+    flex: 1,
   },
   headerTitle: {
-    fontSize: 24,
-    fontWeight: "bold",
+    fontSize: 20,
+    fontWeight: "800",
     color: COLORS.dark,
-    marginBottom: 8,
+    marginBottom: 2,
   },
   headerSubtitle: {
-    fontSize: 14,
+    fontSize: 13,
     color: COLORS.gray,
-    textAlign: "center",
+    textAlign: "left",
   },
   formCard: {
     backgroundColor: COLORS.white,
     borderRadius: 16,
-    padding: 16,
-    marginBottom: 24,
+    padding: 12,
+    marginBottom: 16,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.05,
@@ -448,52 +798,52 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.white,
   },
   currencySymbolContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     backgroundColor: "#F5F5F5",
     borderRightWidth: 1,
     borderRightColor: "#E0E0E0",
   },
   currencySymbol: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "bold",
     color: COLORS.dark,
   },
   amountInput: {
     flex: 1,
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: "bold",
     color: COLORS.dark,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
   inputIcon: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
   },
   textInput: {
     flex: 1,
     fontSize: 16,
     color: COLORS.dark,
-    paddingVertical: 16,
-    paddingRight: 16,
+    paddingVertical: 12,
+    paddingRight: 14,
   },
   sectionLabel: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "bold",
     color: COLORS.dark,
-    marginBottom: 12,
+    marginBottom: 8,
     marginLeft: 4,
   },
   splitTypeContainer: {
     flexDirection: "row",
     backgroundColor: "#EEEEEE",
     borderRadius: 12,
-    padding: 4,
-    marginBottom: 24,
+    padding: 3,
+    marginBottom: 16,
   },
   splitTypeButton: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: 10,
     alignItems: "center",
     justifyContent: "center",
     position: 'relative',
@@ -511,7 +861,7 @@ const styles = StyleSheet.create({
     zIndex: -1,
   },
   splitTypeText: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: "600",
     color: COLORS.gray,
   },
@@ -525,10 +875,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   membersCount: {
-    fontSize: 13,
+    fontSize: 12,
     color: COLORS.primary,
     fontWeight: "600",
-    marginBottom: 12,
+    marginBottom: 8,
     marginRight: 4,
   },
   membersCard: {
@@ -540,13 +890,13 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 12,
     elevation: 3,
-    marginBottom: 24,
+    marginBottom: 16,
   },
   memberRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 16,
+    paddingVertical: 12,
   },
   memberRowBorder: {
     borderBottomWidth: 1,
@@ -558,20 +908,20 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
     marginRight: 12,
   },
   avatarText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "bold",
     color: COLORS.primary,
   },
   memberName: {
-    fontSize: 16,
+    fontSize: 15,
     color: COLORS.dark,
     fontWeight: "500",
   },
@@ -596,22 +946,22 @@ const styles = StyleSheet.create({
   },
   customAmountInput: {
     width: 60,
-    paddingVertical: 8,
-    fontSize: 15,
+    paddingVertical: 6,
+    fontSize: 14,
     fontWeight: "600",
     color: COLORS.dark,
     textAlign: "right",
   },
   switch: {
-    transform: [{ scaleX: 0.9 }, { scaleY: 0.9 }],
+    transform: [{ scaleX: 0.85 }, { scaleY: 0.85 }],
   },
   summaryCard: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: COLORS.primary + '10',
     borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
+    padding: 12,
+    marginBottom: 16,
     borderWidth: 1,
     borderColor: COLORS.primary + '30',
   },
@@ -624,13 +974,13 @@ const styles = StyleSheet.create({
     borderColor: COLORS.success + '30',
   },
   summaryIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: COLORS.white,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 16,
+    marginRight: 12,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -641,20 +991,20 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   summaryLabel: {
-    fontSize: 13,
+    fontSize: 12,
     color: COLORS.gray,
-    marginBottom: 4,
+    marginBottom: 2,
     fontWeight: "500",
   },
   summaryValue: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "bold",
     color: COLORS.primary,
   },
   saveButton: {
     backgroundColor: COLORS.primary,
     flexDirection: "row",
-    paddingVertical: 18,
+    paddingVertical: 14,
     borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
@@ -669,7 +1019,7 @@ const styles = StyleSheet.create({
   },
   saveButtonText: {
     color: COLORS.white,
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "bold",
     marginRight: 8,
   },

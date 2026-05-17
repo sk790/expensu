@@ -25,8 +25,6 @@ export function AppNavigator() {
 
   useEffect(() => {
     if (user) {
-      console.log(user,'use');
-      
       registerForPushNotificationsAsync();
     }
   }, [user]);

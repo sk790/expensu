@@ -5,6 +5,7 @@ import {
   Text,
   TouchableOpacity,
   View,
+  Image,
 } from "react-native";
 import { COLORS, SHADOWS } from "../utils/constants";
 
@@ -99,7 +100,11 @@ export default function GroupCard({ group, onPress }) {
                     },
                   ]}
                 >
-                  <Text style={styles.memberInitial}>{memberInitial}</Text>
+                  {m.avatar ? (
+                    <Image source={{ uri: m.avatar }} style={styles.memberAvatarImage} />
+                  ) : (
+                    <Text style={styles.memberInitial}>{memberInitial}</Text>
+                  )}
                 </View>
               );
             })}
@@ -223,6 +228,11 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "700",
     color: "#FFFFFF",
+  },
+  memberAvatarImage: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 12,
   },
   moreBubble: {
     backgroundColor: "#F3F4F6",

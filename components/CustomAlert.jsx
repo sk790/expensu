@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
   Modal,
@@ -8,6 +8,7 @@ import {
   View,
   Dimensions,
   Easing,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS } from "../utils/constants";
@@ -54,15 +55,18 @@ export default function CustomAlert({
   message,
   buttons = [],
   onDismiss,
+  dismissible = true,
 }) {
   const scaleAnim = useRef(new Animated.Value(0.7)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
   const iconBounce = useRef(new Animated.Value(0)).current;
+  const [loadingIndex, setLoadingIndex] = useState(null);
 
   const config = ALERT_TYPES[type] || ALERT_TYPES.info;
 
   useEffect(() => {
     if (visible) {
+      setLoadingIndex(null);
       Animated.parallel([
         Animated.spring(scaleAnim, {
           toValue: 1,
@@ -88,14 +92,19 @@ export default function CustomAlert({
     }
   }, [visible]);
 
-  const handleDismiss = () => {
+  const forceDismiss = () => {
     Animated.parallel([
       Animated.timing(scaleAnim, { toValue: 0.85, duration: 150, useNativeDriver: true }),
       Animated.timing(opacityAnim, { toValue: 0, duration: 150, useNativeDriver: true }),
     ]).start(() => onDismiss?.());
   };
 
-  const defaultButtons = buttons.length > 0 ? buttons : [{ text: "OK", onPress: handleDismiss }];
+  const handleDismiss = () => {
+    if (!dismissible) return;
+    forceDismiss();
+  };
+
+  const defaultButtons = buttons.length > 0 ? buttons : [{ text: "OK", onPress: forceDismiss }];
 
   return (
     <Modal transparent visible={visible} animationType="none" onRequestClose={handleDismiss} statusBarTranslucent>
@@ -128,16 +137,38 @@ export default function CustomAlert({
                     isPrimary && { backgroundColor: config.color },
                     isDanger && styles.btnDanger,
                     isCancel && styles.btnCancel,
+                    loadingIndex !== null && { opacity: 0.6 },
                   ]}
-                  onPress={() => {
-                    handleDismiss();
-                    setTimeout(() => btn.onPress?.(), 150);
+                  onPress={async () => {
+                    if (loadingIndex !== null) return;
+                    if (btn.onPress) {
+                      try {
+                        const res = btn.onPress();
+                        if (res instanceof Promise || (res && typeof res.then === "function")) {
+                          setLoadingIndex(i);
+                          await res;
+                          forceDismiss();
+                        } else {
+                          forceDismiss();
+                        }
+                      } catch (error) {
+                        console.error("Alert button onPress error:", error);
+                        setLoadingIndex(null);
+                      }
+                    } else {
+                      forceDismiss();
+                    }
                   }}
                   activeOpacity={0.8}
+                  disabled={loadingIndex !== null}
                 >
-                  <Text style={[styles.btnText, (isPrimary || isDanger) && styles.btnTextLight, isCancel && styles.btnTextCancel]}>
-                    {btn.text}
-                  </Text>
+                  {loadingIndex === i ? (
+                    <ActivityIndicator size="small" color={isCancel ? COLORS.primary : "#FFFFFF"} />
+                  ) : (
+                    <Text style={[styles.btnText, (isPrimary || isDanger) && styles.btnTextLight, isCancel && styles.btnTextCancel]}>
+                      {btn.text}
+                    </Text>
+                  )}
                 </TouchableOpacity>
               );
             })}

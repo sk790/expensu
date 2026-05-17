@@ -7,6 +7,7 @@ import {
   ScrollView,
   ActivityIndicator,
   StatusBar,
+  Image,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -23,8 +24,7 @@ import { useAlert } from "../../hooks/useAlert";
 import LoadingSpinner from "../../components/LoadingSpinner";
 
 export default function ProfileScreen({ navigation }) {
-  const [user, setUser] = useState(null);
-  const { logout } = useAuth();
+  const { user, updateUser, logout } = useAuth();
   const [loading, setLoading] = useState(true);
   const { alertProps, showAlert } = useAlert();
   const insets = useSafeAreaInsets();
@@ -38,11 +38,12 @@ export default function ProfileScreen({ navigation }) {
       setLoading(true);
       const data = await userService.getUserProfile();
       const userData = data.user || data;
-      setUser(userData);
-      await storage.setUser(userData);
+      updateUser(userData);
     } catch (error) {
       const localUser = await storage.getUser();
-      setUser(localUser);
+      if (localUser) {
+        updateUser(localUser);
+      }
     } finally {
       setLoading(false);
     }
@@ -110,7 +111,11 @@ export default function ProfileScreen({ navigation }) {
           {/* Avatar ring */}
           <View style={styles.avatarRing}>
             <View style={styles.avatarCircle}>
-              <Text style={styles.avatarText}>{initials}</Text>
+              {user.avatar ? (
+                <Image source={{ uri: user.avatar }} style={styles.avatarImage} />
+              ) : (
+                <Text style={styles.avatarText}>{initials}</Text>
+              )}
             </View>
           </View>
 
@@ -411,6 +416,11 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.3)",
     justifyContent: "center",
     alignItems: "center",
+  },
+  avatarImage: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
   },
   avatarText: { fontSize: 36, fontWeight: "800", color: "#FFF" },
   heroName: { fontSize: 24, fontWeight: "800", color: "#FFF", marginBottom: 4 },
