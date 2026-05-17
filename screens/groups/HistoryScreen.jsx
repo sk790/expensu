@@ -402,6 +402,7 @@ export default function HistoryScreen() {
                           params: {
                             expense,
                             groupId: expense.groupId?._id || expense.groupId,
+                            fromHistory: true,
                           },
                         });
                       }}

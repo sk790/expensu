@@ -24,7 +24,7 @@ import { COLORS } from "../../utils/constants";
 import { useAuth } from "../../context/AuthContext";
 
 export default function ExpenseDetailScreen({ route, navigation }) {
-  const { expense: initialExpense, groupId } = route.params;
+  const { expense: initialExpense, groupId, fromHistory } = route.params;
   const [expense, setExpense] = React.useState(initialExpense);
   const [loading, setLoading] = React.useState(false);
   const [refreshing, setRefreshing] = React.useState(false);
@@ -81,7 +81,11 @@ export default function ExpenseDetailScreen({ route, navigation }) {
               Haptics.notificationAsync(
                 Haptics.NotificationFeedbackType.Success,
               );
-              navigation.goBack();
+              if (fromHistory) {
+                navigation.navigate("History");
+              } else {
+                navigation.goBack();
+              }
             } catch (error) {
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
               showAlert({
