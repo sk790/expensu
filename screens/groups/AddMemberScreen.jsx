@@ -9,116 +9,82 @@ import {
   View,
   KeyboardAvoidingView,
   Platform,
+  StatusBar,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { groupService, userService, groupInvitationService } from "../../services/authService";
+import { userService, groupInvitationService } from "../../services/authService";
 import { COLORS } from "../../utils/constants";
-import Animated, {
-  FadeInDown,
-  FadeInUp,
-  Layout,
-  ZoomIn,
-} from "react-native-reanimated";
-import AnimatedView from "../../components/AnimatedView";
+import Animated, { FadeInUp, Layout, ZoomIn } from "react-native-reanimated";
+import { LinearGradient } from "expo-linear-gradient";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import CustomAlert from "../../components/CustomAlert";
 import { useAlert } from "../../hooks/useAlert";
 
 export default function AddMemberScreen({ route, navigation }) {
   const { groupId, currentMembers } = route.params;
+  const insets = useSafeAreaInsets();
 
   const [email, setEmail] = useState("");
   const [searchResults, setSearchResults] = useState(null);
   const [loading, setLoading] = useState(false);
   const [searching, setSearching] = useState(false);
-  const [focusedInput, setFocusedInput] = useState(false);
+  const [invitationStatus, setInvitationStatus] = useState(null);
   const { alertProps, showAlert } = useAlert();
 
   useEffect(() => {
-    console.log(`Debounce started for: "${email}"`);
     const timer = setTimeout(() => {
-      if (email.trim().length >= 1) {
-        console.log(`Performing search for: "${email}"`);
+      if (email.trim().length >= 3) {
         performSearch();
       } else {
         setSearchResults(null);
+        setInvitationStatus(null);
       }
-    }, 300);
-
-    return () => {
-      console.log(`Clearing timer for: "${email}"`);
-      clearTimeout(timer);
-    };
+    }, 600);
+    return () => clearTimeout(timer);
   }, [email]);
 
   const performSearch = async () => {
     setSearching(true);
     try {
-      const response = await userService.searchUserByEmail(email.trim());
-
+      const response = await userService.searchUserByEmail(email.trim(), groupId);
       const isAlreadyMember = currentMembers.some(
-        (member) => member._id === response.user._id,
+        (member) => (member._id || member.id) === response.user.id
       );
-
       if (isAlreadyMember) {
         setSearchResults(null);
+        setInvitationStatus(null);
         return;
       }
-
       setSearchResults(response.user);
+      setInvitationStatus(response.invitationStatus);
     } catch (error) {
       setSearchResults(null);
+      setInvitationStatus(null);
     } finally {
       setSearching(false);
     }
   };
 
-  const handleSearchUser = async () => {
-    if (!email.trim()) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      showAlert({
-        type: "error",
-        title: "Missing Input",
-        message: "Please enter an email or username to search.",
-      });
-      return;
-    }
-    performSearch();
-  };
-
   const handleSendInvite = async () => {
-    if (!searchResults) {
-      return;
-    }
-
+    if (!searchResults) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setLoading(true);
     try {
       await groupInvitationService.sendInvitation(groupId, searchResults.id);
-
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       showAlert({
         type: "success",
         title: "Invitation Sent!",
-        message: `A request has been sent to ${searchResults.name}. They will be added once they accept.`,
-        buttons: [
-          {
-            text: "Done",
-            onPress: () => {
-              setEmail("");
-              setSearchResults(null);
-              navigation.goBack();
-            },
-          },
-        ],
+        message: `A request has been sent to ${searchResults.name}.`,
+        buttons: [{ text: "Great!", onPress: () => navigation.goBack() }],
       });
     } catch (error) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       showAlert({
         type: "error",
         title: "Oops",
-        message:
-          error.response?.data?.message || "Failed to send invitation.",
+        message: error.response?.data?.message || "Failed to send invitation.",
       });
     } finally {
       setLoading(false);
@@ -126,362 +92,317 @@ export default function AddMemberScreen({ route, navigation }) {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.containerWrapper}
-      behavior="padding"
-      keyboardVerticalOffset={Platform.OS === "ios" ? 100 : 20}
-    >
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" />
       <CustomAlert {...alertProps} />
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        style={styles.container}
-        contentContainerStyle={styles.content}
+      
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : null}
       >
-        {/* Header Section */}
-        <AnimatedView
-          entering={FadeInDown.duration(400).delay(100)}
-          style={styles.headerContainer}
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[styles.content, { paddingTop: insets.top + 20 }]}
+          keyboardShouldPersistTaps="always"
         >
-          <View style={styles.iconCircle}>
-            <Ionicons name="person-add" size={32} color={COLORS.primary} />
+          {/* Header - Simplified */}
+          <View style={styles.header}>
+            <View style={styles.iconContainer}>
+              <Ionicons name="person-add" size={32} color={COLORS.primary} />
+            </View>
+            <Text style={styles.title}>Add Member</Text>
+            <Text style={styles.subtitle}>Find and invite friends to your group</Text>
           </View>
-          <Text style={styles.headerTitle}>Add Member</Text>
-          <Text style={styles.headerSubtitle}>
-            Search by email or username to add friends
-          </Text>
-        </AnimatedView>
 
-        {/* Search Bar */}
-        <AnimatedView entering={FadeInDown.duration(400).delay(200)}>
-          <View
-            style={[
-              styles.searchContainer,
-              focusedInput && styles.searchContainerFocused,
-            ]}
-          >
-            <Ionicons
-              name="search-outline"
-              size={20}
-              color={focusedInput ? COLORS.primary : COLORS.gray}
-              style={styles.searchIcon}
-            />
+          {/* Search Box - High Stability */}
+          <View style={styles.searchBox}>
+            <Ionicons name="search-outline" size={20} color={COLORS.gray} />
             <TextInput
+              key="member-search-input-stable"
               style={styles.input}
-              placeholder="Email or username"
-              placeholderTextColor={COLORS.gray}
+              placeholder="Email or username..."
+              placeholderTextColor={COLORS.gray + "80"}
               value={email}
               onChangeText={setEmail}
-              keyboardType="default"
               autoCapitalize="none"
-              editable={!loading && !searching}
-              onFocus={() => setFocusedInput(true)}
-              onBlur={() => setFocusedInput(false)}
-              onSubmitEditing={handleSearchUser}
-              returnKeyType="search"
+              autoCorrect={false}
+              spellCheck={false}
+              editable={true}
             />
-            <TouchableOpacity
-              style={[
-                styles.searchButton,
-                (searching || loading || !email.trim()) &&
-                  styles.buttonDisabled,
-              ]}
-              onPress={handleSearchUser}
-              disabled={searching || loading || !email.trim()}
-              activeOpacity={0.8}
-            >
+            <View style={{ width: 30, alignItems: "center", justifyContent: "center" }}>
               {searching ? (
-                <ActivityIndicator size="small" color={COLORS.white} />
-              ) : (
-                <Ionicons name="search" size={20} color={COLORS.white} />
-              )}
-            </TouchableOpacity>
+                <ActivityIndicator size="small" color={COLORS.primary} />
+              ) : email.length > 0 ? (
+                <TouchableOpacity onPress={() => setEmail("")} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                  <Ionicons name="close-circle" size={20} color={COLORS.gray} />
+                </TouchableOpacity>
+              ) : null}
+            </View>
           </View>
-        </AnimatedView>
 
-        {/* Results Area */}
-        <AnimatedView layout={Layout.springify()}>
-          {searchResults ? (
-            <AnimatedView
-              entering={ZoomIn.duration(400)}
-              style={styles.userCard}
-            >
-              <View style={styles.userInfo}>
-                <View style={styles.avatar}>
-                  <Text style={styles.avatarText}>
-                    {searchResults.name.substring(0, 2).toUpperCase()}
-                  </Text>
+          {/* Results Area */}
+          <View style={styles.resultsArea}>
+            {searchResults ? (
+              <Animated.View entering={ZoomIn.duration(400)} layout={Layout.springify()} style={styles.userCard}>
+                <View style={styles.cardHeader}>
+                  <View style={styles.squircleAvatar}>
+                    <Text style={styles.avatarText}>{searchResults.name.substring(0, 1).toUpperCase()}</Text>
+                  </View>
+                  <View style={styles.userInfo}>
+                    <Text style={styles.userName}>{searchResults.name}</Text>
+                    <Text style={styles.userHandle}>@{searchResults.username || "user"}</Text>
+                  </View>
+                  <View style={styles.badge}>
+                    <Ionicons name="shield-checkmark" size={16} color={COLORS.primary} />
+                  </View>
                 </View>
-                <View style={styles.userDetails}>
-                  <Text style={styles.userName}>{searchResults.name}</Text>
-                  {searchResults.username && (
-                    <Text style={styles.userUsername}>
-                      @{searchResults.username}
-                    </Text>
+
+                <View style={styles.cardDivider} />
+
+                <View style={styles.emailRow}>
+                  <Ionicons name="mail-outline" size={16} color={COLORS.gray} />
+                  <Text style={styles.emailText}>{searchResults.email}</Text>
+                </View>
+
+                <View style={styles.actionRow}>
+                  {invitationStatus === "pending" ? (
+                    <View style={styles.pendingBadge}>
+                      <Ionicons name="time" size={18} color="#FF9500" />
+                      <Text style={styles.pendingText}>Invitation Pending</Text>
+                    </View>
+                  ) : (
+                    <TouchableOpacity 
+                      style={styles.inviteButton} 
+                      onPress={handleSendInvite}
+                      disabled={loading}
+                    >
+                      <LinearGradient
+                        colors={[COLORS.primary, "#6366f1"]}
+                        style={styles.inviteGradient}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 0 }}
+                      >
+                        {loading ? (
+                          <ActivityIndicator size="small" color="#FFF" />
+                        ) : (
+                          <>
+                            <Text style={styles.inviteText}>Send Invitation</Text>
+                            <Ionicons name="arrow-forward" size={18} color="#FFF" style={{ marginLeft: 8 }} />
+                          </>
+                        )}
+                      </LinearGradient>
+                    </TouchableOpacity>
                   )}
-                  <Text style={styles.userEmail}>{searchResults.email}</Text>
                 </View>
-                <View style={styles.foundBadge}>
-                  <Ionicons
-                    name="checkmark-circle"
-                    size={20}
-                    color={COLORS.success}
+              </Animated.View>
+            ) : (
+              <Animated.View entering={FadeInUp.delay(400)} style={styles.emptyContainer}>
+                <View style={styles.emptyIconBox}>
+                  <Ionicons 
+                    name={email.length >= 3 ? "person-outline" : "search-outline"} 
+                    size={40} 
+                    color={COLORS.gray + "40"} 
                   />
                 </View>
-              </View>
-
-              <View style={styles.actionButtonsRow}>
-                <TouchableOpacity
-                  style={[styles.btnOutline]}
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    setSearchResults(null);
-                    setEmail("");
-                  }}
-                  disabled={loading}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.btnOutlineText}>Clear</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.btnPrimary, loading && styles.buttonDisabled]}
-                  onPress={handleSendInvite}
-                  disabled={loading}
-                  activeOpacity={0.8}
-                >
-                  {loading ? (
-                    <ActivityIndicator size="small" color={COLORS.white} />
-                  ) : (
-                    <>
-                      <Text style={styles.btnPrimaryText}>Send Invite</Text>
-                      <Ionicons
-                        name="paper-plane"
-                        size={18}
-                        color={COLORS.white}
-                        style={{ marginLeft: 6 }}
-                      />
-                    </>
-                  )}
-                </TouchableOpacity>
-              </View>
-            </AnimatedView>
-          ) : (
-            <AnimatedView
-              entering={FadeInUp.duration(400).delay(300)}
-              style={styles.emptyState}
-            >
-              <View style={styles.emptyStateIconBg}>
-                <Ionicons
-                  name={email ? "search-outline" : "people-outline"}
-                  size={48}
-                  color={email ? COLORS.primary : COLORS.gray}
-                />
-              </View>
-              <Text style={styles.emptyStateTitle}>
-                {email ? "Ready to search" : "Grow your group"}
-              </Text>
-              <Text style={styles.emptyStateText}>
-                {email
-                  ? "Tap the search button to find this user in our system."
-                  : "Enter your friend's email or username above to add them to this group."}
-              </Text>
-            </AnimatedView>
-          )}
-        </AnimatedView>
-        <View style={{ height: 40 }} />
-      </ScrollView>
-    </KeyboardAvoidingView>
+                <Text style={styles.emptyTitle}>
+                  {email.length >= 3 ? "Searching for results..." : "Start searching"}
+                </Text>
+                <Text style={styles.emptySubtitle}>
+                  {email.length >= 3 
+                    ? "Looking through our records..." 
+                    : "Enter a friend's email or username to find them."}
+                </Text>
+              </Animated.View>
+            )}
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  containerWrapper: {
-    flex: 1,
-    backgroundColor: "#F8F9FA",
-  },
   container: {
     flex: 1,
+    backgroundColor: "#FFFFFF",
   },
   content: {
     padding: 24,
-    paddingBottom: 100,
-    flexGrow: 1,
+    paddingBottom: 40,
   },
-  headerContainer: {
+  header: {
     alignItems: "center",
-    marginTop: 10,
     marginBottom: 32,
   },
-  iconCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: COLORS.primary + "15",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 16,
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: COLORS.dark,
-    marginBottom: 8,
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    color: COLORS.gray,
-    textAlign: "center",
-  },
-  searchContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: COLORS.white,
-    borderWidth: 1.5,
-    borderColor: "#F0F0F0",
-    borderRadius: 16,
-    paddingLeft: 16,
-    paddingRight: 6,
-    paddingVertical: 6,
-    marginBottom: 32,
-    shadowColor: "transparent",
-    elevation: 0,
-  },
-  searchContainerFocused: {
-    borderColor: COLORS.primary,
-    shadowOpacity: 0.08,
-  },
-  searchIcon: {
-    marginRight: 10,
-  },
-  input: {
-    flex: 1,
-    fontSize: 16,
-    color: COLORS.dark,
-    paddingVertical: 12,
-  },
-  searchButton: {
-    backgroundColor: COLORS.primary,
-    borderRadius: 12,
-    width: 44,
-    height: 44,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  userCard: {
-    backgroundColor: COLORS.white,
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: "#F0F0F0",
-  },
-  userInfo: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 24,
-    backgroundColor: "#F8F9FA",
-    padding: 16,
-    borderRadius: 12,
-  },
-  avatar: {
-    width: 48,
-    height: 48,
+  iconContainer: {
+    width: 72,
+    height: 72,
     borderRadius: 24,
-    backgroundColor: COLORS.primary + "20",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 16,
-  },
-  avatarText: {
-    color: COLORS.primary,
-    fontSize: 18,
-    fontWeight: "bold",
-  },
-  userDetails: {
-    flex: 1,
-  },
-  userName: {
-    fontSize: 17,
-    fontWeight: "bold",
-    color: COLORS.dark,
-    marginBottom: 4,
-  },
-  userUsername: {
-    fontSize: 13,
-    color: COLORS.primary,
-    fontWeight: "600",
-    marginBottom: 2,
-  },
-  userEmail: {
-    fontSize: 13,
-    color: COLORS.gray,
-  },
-  foundBadge: {
-    padding: 4,
-  },
-  actionButtonsRow: {
-    flexDirection: "row",
-    gap: 12,
-  },
-  btnPrimary: {
-    flex: 2,
-    flexDirection: "row",
-    backgroundColor: COLORS.primary,
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  btnPrimaryText: {
-    color: COLORS.white,
-    fontSize: 16,
-    fontWeight: "bold",
-  },
-  btnOutline: {
-    flex: 1,
-    backgroundColor: "transparent",
-    borderWidth: 1.5,
-    borderColor: "#E0E0E0",
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  btnOutlineText: {
-    color: COLORS.gray,
-    fontSize: 16,
-    fontWeight: "bold",
-  },
-  emptyState: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 40,
-    backgroundColor: COLORS.white,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "#F0F0F0",
-  },
-  emptyStateIconBg: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: "#F5F5F5",
+    backgroundColor: "#F0F4F8",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 20,
   },
-  emptyStateTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
+  title: {
+    fontSize: 28,
+    fontWeight: "800",
     color: COLORS.dark,
-    marginBottom: 8,
+    letterSpacing: -0.5,
   },
-  emptyStateText: {
+  subtitle: {
+    fontSize: 16,
+    color: COLORS.gray,
+    marginTop: 6,
+    fontWeight: "500",
+  },
+  searchBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F5F7FA",
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    height: 64,
+    borderWidth: 1,
+    borderColor: "#E0E0E0",
+  },
+  input: {
+    flex: 1,
+    fontSize: 17,
+    fontWeight: "600",
+    color: COLORS.dark,
+    marginLeft: 12,
+  },
+  resultsArea: {
+    marginTop: 32,
+  },
+  userCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 28,
+    padding: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.08,
+    shadowRadius: 20,
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: "#F0F0F0",
+  },
+  cardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  squircleAvatar: {
+    width: 56,
+    height: 56,
+    borderRadius: 20,
+    backgroundColor: COLORS.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarText: {
+    color: "#FFF",
+    fontSize: 22,
+    fontWeight: "800",
+  },
+  userInfo: {
+    flex: 1,
+    marginLeft: 16,
+  },
+  userName: {
+    fontSize: 19,
+    fontWeight: "700",
+    color: COLORS.dark,
+  },
+  userHandle: {
     fontSize: 14,
+    color: COLORS.primary,
+    fontWeight: "600",
+    marginTop: 2,
+  },
+  badge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#F0F7FF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cardDivider: {
+    height: 1,
+    backgroundColor: "#F0F0F0",
+    marginVertical: 20,
+  },
+  emailRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 24,
+  },
+  emailText: {
+    fontSize: 15,
+    color: COLORS.gray,
+    fontWeight: "500",
+    marginLeft: 8,
+  },
+  actionRow: {
+    width: "100%",
+  },
+  inviteButton: {
+    width: "100%",
+    height: 56,
+    borderRadius: 18,
+    overflow: "hidden",
+  },
+  inviteGradient: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  inviteText: {
+    color: "#FFF",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  pendingBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFF9F0",
+    height: 56,
+    borderRadius: 18,
+    borderWidth: 1.5,
+    borderColor: "#FFE5BC",
+  },
+  pendingText: {
+    color: "#FF9500",
+    fontSize: 16,
+    fontWeight: "700",
+    marginLeft: 8,
+  },
+  emptyContainer: {
+    alignItems: "center",
+    marginTop: 40,
+  },
+  emptyIconBox: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: "#F5F7FA",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 20,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: COLORS.dark,
+  },
+  emptySubtitle: {
+    fontSize: 15,
     color: COLORS.gray,
     textAlign: "center",
+    marginTop: 8,
+    paddingHorizontal: 40,
     lineHeight: 22,
   },
 });

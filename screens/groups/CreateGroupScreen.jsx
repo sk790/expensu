@@ -122,7 +122,7 @@ export default function CreateGroupScreen({ navigation, route }) {
               text: "Share Invite",
               onPress: () =>
                 Share.share({
-                  message: `Join "${groupName}" on Expensu!\n\n${response.inviteLink}`,
+                  message: `Join "${groupName}" on SplitMate!\n\n${response.inviteLink}`,
                 }),
             },
             {

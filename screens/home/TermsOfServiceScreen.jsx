@@ -21,12 +21,12 @@ export default function TermsOfServiceScreen({ navigation }) {
     {
       title: "1. Acceptance of Terms",
       content:
-        "By accessing and using Expensu, you agree to be bound by these Terms of Service and all applicable laws and regulations. If you do not agree with any of these terms, you are prohibited from using or accessing this app.",
+        "By accessing and using SplitMate, you agree to be bound by these Terms of Service and all applicable laws and regulations. If you do not agree with any of these terms, you are prohibited from using or accessing this app.",
     },
     {
       title: "2. Use License",
       content:
-        "Permission is granted to temporarily download one copy of the materials (information or software) on Expensu for personal, non-commercial transitory viewing only.",
+        "Permission is granted to temporarily download one copy of the materials (information or software) on SplitMate for personal, non-commercial transitory viewing only.",
     },
     {
       title: "3. User Accounts",
@@ -36,17 +36,17 @@ export default function TermsOfServiceScreen({ navigation }) {
     {
       title: "4. Expense Splitting",
       content:
-        "Expensu is a tool for tracking and splitting expenses. While we strive for accuracy, we are not responsible for any financial disputes between users. All settlements are the sole responsibility of the users involved.",
+        "SplitMate is a tool for tracking and splitting expenses. While we strive for accuracy, we are not responsible for any financial disputes between users. All settlements are the sole responsibility of the users involved.",
     },
     {
       title: "5. Privacy Policy",
       content:
-        "Your use of Expensu is also governed by our Privacy Policy. Please review our Privacy Policy, which also governs the Site and informs users of our data collection practices.",
+        "Your use of SplitMate is also governed by our Privacy Policy. Please review our Privacy Policy, which also governs the Site and informs users of our data collection practices.",
     },
     {
       title: "6. Limitations",
       content:
-        "In no event shall Expensu or its suppliers be liable for any damages (including, without limitation, damages for loss of data or profit, or due to business interruption) arising out of the use or inability to use the app.",
+        "In no event shall SplitMate or its suppliers be liable for any damages (including, without limitation, damages for loss of data or profit, or due to business interruption) arising out of the use or inability to use the app.",
     },
   ];
 
@@ -89,7 +89,7 @@ export default function TermsOfServiceScreen({ navigation }) {
             </LinearGradient>
             <Text style={styles.lastUpdated}>Last Updated: May 2026</Text>
             <Text style={styles.welcomeText}>
-              Please read these terms carefully before using the Expensu mobile
+              Please read these terms carefully before using the SplitMate mobile
               application.
             </Text>
           </View>
@@ -110,7 +110,7 @@ export default function TermsOfServiceScreen({ navigation }) {
           <View style={styles.footer}>
             <Text style={styles.footerText}>
               If you have any questions about these Terms, please contact us at
-              support@expensu.com
+              support@SplitMate.com
             </Text>
           </View>
         </AnimatedView>

@@ -17,8 +17,20 @@ function AuthStack() {
   );
 }
 
+import { useEffect } from "react";
+import { registerForPushNotificationsAsync } from "../utils/notifications";
+
 export function AppNavigator() {
   const { user, loading } = useAuth();
+
+  useEffect(() => {
+    if (user) {
+      console.log(user,'use');
+      
+      registerForPushNotificationsAsync();
+    }
+  }, [user]);
+
   if (loading) {
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>

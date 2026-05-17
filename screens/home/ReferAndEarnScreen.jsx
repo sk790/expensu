@@ -23,7 +23,7 @@ const ReferAndEarnScreen = ({ navigation }) => {
   const onShare = async () => {
     try {
       await Share.share({
-        message: `Join me on Expensu! Use my referral code ${referralCode} and let's split expenses easily. Download now!`,
+        message: `Join me on SplitMate! Use my referral code ${referralCode} and let's split expenses easily. Download now!`,
       });
     } catch (error) {
       console.log(error.message);
@@ -60,7 +60,7 @@ const ReferAndEarnScreen = ({ navigation }) => {
         <Text style={styles.mainTitle}>Invite your friends</Text>
         <Text style={styles.description}>
           Share your referral code with friends and get ₹10 when they sign up on
-          Expensu!
+          SplitMate!
         </Text>
 
         <View style={styles.stepsContainer}>

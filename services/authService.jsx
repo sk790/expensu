@@ -130,8 +130,10 @@ export const userService = {
     return response.data;
   },
 
-  async searchUserByEmail(email) {
-    const response = await api.get(`user/search`, { params: { email } });
+  async searchUserByEmail(email, groupId) {
+    const response = await api.get(`user/search`, {
+      params: { email, groupId },
+    });
     return response.data;
   },
 
@@ -145,6 +147,11 @@ export const userService = {
     if (response.data.success || response.data.user) {
       await storage.setUser(response.data.user);
     }
+    return response.data;
+  },
+
+  async savePushToken(token) {
+    const response = await api.post("user/push-token", { token });
     return response.data;
   },
 };

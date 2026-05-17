@@ -82,7 +82,7 @@ export default function RegisterScreen({ navigation }) {
             <Ionicons name="person-add" size={36} color="#FFF" />
           </View>
           <Text style={styles.appName}>Create Account</Text>
-          <Text style={styles.tagline}>Join Expensu and split smartly</Text>
+          <Text style={styles.tagline}>Join SplitMate and split smartly</Text>
         </AnimatedView>
       </LinearGradient>
 

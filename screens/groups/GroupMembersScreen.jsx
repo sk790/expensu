@@ -106,7 +106,7 @@ export default function GroupMembersScreen({ route, navigation }) {
   const shareInviteLink = async () => {
     try {
       await Share.share({
-        message: `Join my group "${group.name}" on Expensu!\n\n${inviteLink}`,
+        message: `Join my group "${group.name}" on SplitMate!\n\n${inviteLink}`,
         title: `Join ${group.name}`,
       });
     } catch (error) {

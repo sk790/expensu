@@ -4,6 +4,7 @@ import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useCallback, useMemo, useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import * as Notifications from "expo-notifications";
 import {
   ActivityIndicator,
   FlatList,
@@ -152,6 +153,18 @@ export default function GroupsListScreen({ navigation }) {
       fetchGroups();
     }, []),
   );
+
+  React.useEffect(() => {
+    // Listen for foreground push notifications to update invitation count in real-time
+    const subscription = Notifications.addNotificationReceivedListener((notification) => {
+      console.log("Real-time notification received in GroupsListScreen:", notification);
+      fetchGroups();
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
 
   const onRefresh = () => {
     setRefreshing(true);

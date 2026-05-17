@@ -59,7 +59,7 @@ export default function LoginScreen({ navigation }) {
           <View style={styles.logoCircle}>
             <Ionicons name="wallet" size={40} color="#FFF" />
           </View>
-          <Text style={styles.appName}>Expensu</Text>
+          <Text style={styles.appName}>SplitMate</Text>
           <Text style={styles.tagline}>Split expenses, not friendships</Text>
         </AnimatedView>
       </LinearGradient>
