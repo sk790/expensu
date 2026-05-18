@@ -307,8 +307,8 @@ export default function AddExpenseScreen({ route, navigation }) {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 20}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
     >
       <CustomAlert {...alertProps} />
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
