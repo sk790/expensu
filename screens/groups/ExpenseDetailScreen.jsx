@@ -23,9 +23,25 @@ import { groupService } from "../../services/authService";
 import { COLORS } from "../../utils/constants";
 import { useAuth } from "../../context/AuthContext";
 
+const CURRENCY_SYMBOLS = {
+  INR: "₹",
+  USD: "$",
+  EUR: "€",
+  GBP: "£",
+  JPY: "¥",
+  CAD: "C$",
+  AUD: "A$",
+};
+
 export default function ExpenseDetailScreen({ route, navigation }) {
   const { expense: initialExpense, groupId, fromHistory } = route.params;
   const [expense, setExpense] = React.useState(initialExpense);
+  const [group, setGroup] = React.useState(null);
+  const category = expense?.category;
+  const accentColor = category?.color || COLORS.primary;
+  const categoryIcon = category?.icon || "receipt-outline";
+  const categoryName = category?.name || "Others";
+
   const [loading, setLoading] = React.useState(false);
   const [refreshing, setRefreshing] = React.useState(false);
   const { alertProps, showAlert } = useAlert();
@@ -33,24 +49,32 @@ export default function ExpenseDetailScreen({ route, navigation }) {
 
   const currentUserId = currentUser?._id || currentUser?.id;
   const isCreator = currentUserId === (expense.paidBy?._id || expense.paidBy);
+  const currencySymbol = CURRENCY_SYMBOLS[group?.currency] || "₹";
+
+
 
   useFocusEffect(
     React.useCallback(() => {
-      const refreshExpense = async () => {
+      const refreshData = async () => {
         try {
           setRefreshing(true);
-          const response = await groupService.getGroupExpenses(groupId);
-          const updatedExpense = response.data.find(
+          const [expenseResponse, groupResponse] = await Promise.all([
+            groupService.getGroupExpenses(groupId),
+            groupService.getGroup(groupId),
+          ]);
+          
+          const updatedExpense = expenseResponse.data.find(
             (exp) => exp._id === initialExpense._id,
           );
           if (updatedExpense) setExpense(updatedExpense);
+          if (groupResponse.data) setGroup(groupResponse.data);
         } catch (error) {
-          console.log("Failed to refresh expense:", error);
+          console.log("Failed to refresh expense details:", error);
         } finally {
           setRefreshing(false);
         }
       };
-      refreshExpense();
+      refreshData();
     }, [groupId, initialExpense._id]),
   );
 
@@ -112,6 +136,7 @@ export default function ExpenseDetailScreen({ route, navigation }) {
         amount: expense.amount,
         splitBetween: expense.splitBetween.map((m) => m._id),
         paidBy: expense.paidBy._id,
+        category: expense.category?._id || expense.category,
       },
     });
   };
@@ -141,25 +166,60 @@ export default function ExpenseDetailScreen({ route, navigation }) {
         {/* Hero Amount Card */}
         <AnimatedView
           entering={FadeInDown.duration(400).delay(100)}
-          style={styles.amountCard}
+          style={[styles.amountCard, { borderTopColor: accentColor }]}
         >
-          <View style={styles.amountIconRow}>
-            <MaterialIcons
-              name="receipt-long"
-              size={28}
-              color={COLORS.primary}
-            />
+          {/* Top Row: Category Icon, Description, Date & Category Tag */}
+          <View style={styles.heroRow}>
+            <View style={[styles.compactIconCircle, { backgroundColor: accentColor + "15" }]}>
+              <Ionicons name={categoryIcon} size={22} color={accentColor} />
+            </View>
+            <View style={styles.heroTextContainer}>
+              <Text style={styles.descriptionText} numberOfLines={1}>{expense.description}</Text>
+              <View style={styles.heroMetaRow}>
+                <Text style={styles.heroDateText}>{formatDate(expense.createdAt)}</Text>
+                {categoryName && (
+                  <>
+                    <Text style={styles.bulletSeparator}>•</Text>
+                    <View style={[styles.categoryMiniChipDetail, { backgroundColor: accentColor + "10" }]}>
+                      <Text style={[styles.categoryMiniChipDetailText, { color: accentColor }]}>{categoryName}</Text>
+                    </View>
+                  </>
+                )}
+              </View>
+            </View>
+            {isCreator && (
+              <View style={styles.cardActionsRow}>
+                <TouchableOpacity
+                  onPress={handleEdit}
+                  activeOpacity={0.7}
+                  style={[styles.cardActionBtn, { backgroundColor: accentColor + "10" }]}
+                >
+                  <Ionicons name="pencil" size={15} color={accentColor} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={handleDelete}
+                  activeOpacity={0.7}
+                  style={[styles.cardActionBtn, { backgroundColor: COLORS.danger + "10" }]}
+                >
+                  <Ionicons name="trash-outline" size={15} color={COLORS.danger} />
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
-          <Text style={styles.descriptionText}>{expense.description}</Text>
-          <Text style={styles.amountText}>₹{expense.amount.toFixed(2)}</Text>
-          <View style={styles.dateRow}>
-            <Ionicons name="calendar-outline" size={14} color={COLORS.gray} />
-            <Text style={styles.dateText}>{formatDate(expense.createdAt)}</Text>
-          </View>
-          <View style={styles.perPersonBadge}>
-            <Text style={styles.perPersonText}>
-              ₹{splitAmount.toFixed(2)} per person
-            </Text>
+
+          {/* Elegant Divider */}
+          <View style={styles.heroDivider} />
+
+          {/* Bottom Row: Total Amount & Your Share */}
+          <View style={styles.heroAmountRow}>
+            <View>
+              <Text style={styles.amountLabel}>Total Amount</Text>
+              <Text style={[styles.heroAmountText, { color: accentColor }]}>{currencySymbol}{expense.amount.toFixed(2)}</Text>
+            </View>
+            <View style={styles.heroSplitBlock}>
+              <Text style={styles.splitLabel}>Your Share</Text>
+              <Text style={[styles.heroSplitText, { color: accentColor }]}>{currencySymbol}{splitAmount.toFixed(2)}</Text>
+            </View>
           </View>
         </AnimatedView>
 
@@ -169,12 +229,12 @@ export default function ExpenseDetailScreen({ route, navigation }) {
           style={styles.section}
         >
           <View style={styles.sectionHeader}>
-            <Ionicons name="card-outline" size={20} color={COLORS.primary} />
+            <Ionicons name="card-outline" size={20} color={accentColor} />
             <Text style={styles.sectionTitle}>Paid By</Text>
           </View>
           <View style={styles.paidByCard}>
-            <View style={styles.paidByAvatar}>
-              <Text style={styles.paidByAvatarText}>
+            <View style={[styles.paidByAvatar, { backgroundColor: accentColor + "20" }]}>
+              <Text style={[styles.paidByAvatarText, { color: accentColor }]}>
                 {expense.paidBy.name.substring(0, 2).toUpperCase()}
               </Text>
             </View>
@@ -182,8 +242,8 @@ export default function ExpenseDetailScreen({ route, navigation }) {
               <Text style={styles.paidByName}>{expense.paidBy.name}</Text>
               <Text style={styles.paidByEmail}>{expense.paidBy.email}</Text>
             </View>
-            <Text style={styles.paidByAmount}>
-              ₹{expense.amount.toFixed(2)}
+            <Text style={[styles.paidByAmount, { color: accentColor }]}>
+              {currencySymbol}{expense.amount.toFixed(2)}
             </Text>
           </View>
         </AnimatedView>
@@ -194,87 +254,63 @@ export default function ExpenseDetailScreen({ route, navigation }) {
           style={styles.section}
         >
           <View style={styles.sectionHeader}>
-            <Ionicons name="people-outline" size={20} color={COLORS.primary} />
+            <Ionicons name="people-outline" size={20} color={accentColor} />
             <Text style={styles.sectionTitle}>Split Among</Text>
-            <Text style={styles.memberCount}>
+            <Text style={[styles.memberCount, { color: accentColor }]}>
               {expense.splitBetween.length} people
             </Text>
           </View>
           <View style={styles.membersCard}>
-            {expense.splitBetween.map((member, index) => (
-              <AnimatedView
-                key={member._id || index}
-                entering={ZoomIn.duration(300).delay(100 + index * 50)}
-                style={[
-                  styles.memberSplitCard,
-                  index !== expense.splitBetween.length - 1 &&
-                    styles.memberBorder,
-                ]}
-              >
-                <View style={styles.memberSplitLeft}>
-                  <View
-                    style={[
-                      styles.memberAvatar,
-                      expense.paidBy._id === member._id &&
-                        styles.memberAvatarPayer,
-                    ]}
-                  >
-                    <Text
+            {expense.splitBetween.map((member, index) => {
+              const isPayer = expense.paidBy._id === member._id;
+              return (
+                <AnimatedView
+                  key={member._id || index}
+                  entering={ZoomIn.duration(300).delay(100 + index * 50)}
+                  style={[
+                    styles.memberSplitCard,
+                    index !== expense.splitBetween.length - 1 &&
+                      styles.memberBorder,
+                  ]}
+                >
+                  <View style={styles.memberSplitLeft}>
+                    <View
                       style={[
-                        styles.avatarText,
-                        expense.paidBy._id === member._id &&
-                          styles.avatarTextPayer,
+                        styles.memberAvatar,
+                        isPayer && { backgroundColor: accentColor + "20" },
                       ]}
                     >
-                      {member.name.substring(0, 2).toUpperCase()}
-                    </Text>
-                  </View>
-                  <View style={styles.memberSplitInfo}>
-                    <Text style={styles.memberSplitName}>{member.name}</Text>
-                    <Text style={styles.memberSplitEmail}>{member.email}</Text>
-                  </View>
-                </View>
-                <View style={styles.memberSplitRight}>
-                  <Text style={styles.memberSplitAmount}>
-                    ₹{splitAmount.toFixed(2)}
-                  </Text>
-                  {expense.paidBy._id === member._id && (
-                    <View style={styles.paidBadge}>
-                      <Text style={styles.paidBadgeText}>Paid</Text>
+                      <Text
+                        style={[
+                          styles.avatarText,
+                          isPayer && { color: accentColor },
+                        ]}
+                      >
+                        {member.name.substring(0, 2).toUpperCase()}
+                      </Text>
                     </View>
-                  )}
-                </View>
-              </AnimatedView>
-            ))}
+                    <View style={styles.memberSplitInfo}>
+                      <Text style={styles.memberSplitName}>{member.name}</Text>
+                      <Text style={styles.memberSplitEmail}>{member.email}</Text>
+                    </View>
+                  </View>
+                  <View style={styles.memberSplitRight}>
+                    <Text style={styles.memberSplitAmount}>
+                      {currencySymbol}{splitAmount.toFixed(2)}
+                    </Text>
+                    {isPayer && (
+                      <View style={[styles.paidBadge, { backgroundColor: accentColor + "15" }]}>
+                        <Text style={[styles.paidBadgeText, { color: accentColor }]}>Paid</Text>
+                      </View>
+                    )}
+                  </View>
+                </AnimatedView>
+              );
+            })}
           </View>
         </AnimatedView>
-        <View style={{ height: 100 }} />
+        <View style={{ height: 40 }} />
       </ScrollView>
-
-      {/* Action Buttons */}
-      {isCreator && (
-        <AnimatedView
-          entering={FadeInUp.duration(400).delay(400)}
-          style={styles.actionContainer}
-        >
-          <TouchableOpacity
-            style={[styles.actionButton, styles.editButton]}
-            onPress={handleEdit}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="pencil" size={18} color={COLORS.white} />
-            <Text style={styles.actionButtonText}>Edit</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.actionButton, styles.deleteButton]}
-            onPress={handleDelete}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="trash-outline" size={18} color={COLORS.white} />
-            <Text style={styles.actionButtonText}>Delete</Text>
-          </TouchableOpacity>
-        </AnimatedView>
-      )}
     </View>
   );
 }
@@ -301,50 +337,108 @@ const styles = StyleSheet.create({
   amountCard: {
     backgroundColor: COLORS.white,
     borderRadius: 20,
-    padding: 28,
-    alignItems: "center",
+    padding: 16,
     marginBottom: 24,
     borderWidth: 1,
     borderColor: "#F0F0F0",
     borderTopWidth: 4,
-    borderTopColor: COLORS.primary,
   },
-  amountIconRow: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: COLORS.primary + "15",
+  heroRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  compactIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 12,
+  },
+  heroTextContainer: {
+    flex: 1,
   },
   descriptionText: {
-    fontSize: 18,
-    fontWeight: "600",
+    fontSize: 17,
+    fontWeight: "700",
     color: COLORS.dark,
-    marginBottom: 8,
-    textAlign: "center",
+    marginBottom: 4,
   },
-  amountText: {
-    fontSize: 44,
-    fontWeight: "bold",
-    color: COLORS.primary,
-    marginBottom: 8,
-  },
-  dateRow: {
+  heroMetaRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    marginBottom: 16,
   },
-  dateText: { fontSize: 13, color: COLORS.gray },
-  perPersonBadge: {
-    backgroundColor: COLORS.primary + "15",
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderRadius: 20,
+  heroDateText: {
+    fontSize: 12,
+    color: COLORS.gray,
+    fontWeight: "500",
   },
-  perPersonText: { fontSize: 14, color: COLORS.primary, fontWeight: "600" },
+  bulletSeparator: {
+    fontSize: 10,
+    color: "#9CA3AF",
+  },
+  categoryMiniChipDetail: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  categoryMiniChipDetailText: {
+    fontSize: 9,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+  },
+  heroDivider: {
+    height: 1,
+    backgroundColor: "#F3F4F6",
+    marginVertical: 14,
+  },
+  heroAmountRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 4,
+  },
+  amountLabel: {
+    fontSize: 11,
+    color: "#9CA3AF",
+    fontWeight: "600",
+    textTransform: "uppercase",
+    marginBottom: 2,
+    letterSpacing: 0.3,
+  },
+  heroAmountText: {
+    fontSize: 24,
+    fontWeight: "800",
+  },
+  heroSplitBlock: {
+    alignItems: "flex-end",
+  },
+  splitLabel: {
+    fontSize: 11,
+    color: "#9CA3AF",
+    fontWeight: "600",
+    textTransform: "uppercase",
+    marginBottom: 2,
+    letterSpacing: 0.3,
+  },
+  heroSplitText: {
+    fontSize: 24,
+    fontWeight: "800",
+  },
+  cardActionsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  cardActionBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   section: { marginBottom: 20 },
   sectionHeader: {
     flexDirection: "row",
@@ -427,25 +521,4 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   paidBadgeText: { color: COLORS.success, fontSize: 11, fontWeight: "bold" },
-  actionContainer: {
-    flexDirection: "row",
-    gap: 12,
-    padding: 16,
-    paddingBottom: Platform.OS === "ios" ? 32 : 16,
-    borderTopWidth: 1,
-    borderTopColor: "#F0F0F0",
-    backgroundColor: COLORS.white,
-  },
-  actionButton: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 14,
-    borderRadius: 14,
-    gap: 8,
-  },
-  editButton: { backgroundColor: COLORS.secondary },
-  deleteButton: { backgroundColor: COLORS.danger },
-  actionButtonText: { color: COLORS.white, fontSize: 15, fontWeight: "bold" },
 });

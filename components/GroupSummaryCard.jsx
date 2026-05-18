@@ -4,6 +4,16 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { COLORS, SHADOWS } from "../utils/constants";
 
+const CURRENCY_SYMBOLS = {
+  INR: "₹",
+  USD: "$",
+  EUR: "€",
+  GBP: "£",
+  JPY: "¥",
+  CAD: "C$",
+  AUD: "A$",
+};
+
 const getInitials = (name = "") => name.substring(0, 2).toUpperCase();
 
 const AVATAR_COLORS = [
@@ -16,12 +26,14 @@ const getAvatarColor = (name = "") => {
   return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
 };
 
-export default function GroupSummaryCard({ group, totalExpenses, onAddMember, onPress }) {
+export default function GroupSummaryCard({ group, totalExpenses, onAddMember, onPress, isAdmin }) {
   const members = group?.members || [];
   const memberCount = members.length;
   const MAX_VISIBLE = 5;
   const visibleMembers = members.slice(0, MAX_VISIBLE);
   const overflow = memberCount - MAX_VISIBLE;
+
+  const currencySymbol = CURRENCY_SYMBOLS[group?.currency] || "₹";
 
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.85}>
@@ -32,7 +44,9 @@ export default function GroupSummaryCard({ group, totalExpenses, onAddMember, on
         </View>
         <View style={styles.groupTitleBlock}>
           <Text style={styles.groupName} numberOfLines={1}>{group?.name || "Group"}</Text>
-          <Text style={styles.groupSubtitle}>Tap to manage members</Text>
+          <Text style={styles.groupSubtitle}>
+            👑 Admin: {group?.createdBy?.name || "Unknown"} • Tap to manage
+          </Text>
         </View>
         <View style={styles.chevron}>
           <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
@@ -42,7 +56,7 @@ export default function GroupSummaryCard({ group, totalExpenses, onAddMember, on
       {/* Stats row */}
       <View style={styles.statsRow}>
         <View style={styles.statBox}>
-          <Text style={styles.statValue}>₹{totalExpenses.toFixed(2)}</Text>
+          <Text style={styles.statValue}>{currencySymbol}{totalExpenses.toFixed(2)}</Text>
           <Text style={styles.statLabel}>Total Spent</Text>
         </View>
         <View style={styles.statDivider} />
@@ -53,7 +67,7 @@ export default function GroupSummaryCard({ group, totalExpenses, onAddMember, on
         <View style={styles.statDivider} />
         <View style={styles.statBox}>
           <Text style={styles.statValue}>
-            {memberCount > 0 ? `₹${(totalExpenses / memberCount).toFixed(0)}` : "₹0"}
+            {memberCount > 0 ? `${currencySymbol}${(totalExpenses / memberCount).toFixed(0)}` : `${currencySymbol}0`}
           </Text>
           <Text style={styles.statLabel}>Per Person</Text>
         </View>
@@ -89,17 +103,19 @@ export default function GroupSummaryCard({ group, totalExpenses, onAddMember, on
           )}
         </View>
 
-        <TouchableOpacity style={styles.addBtnWrap} onPress={onAddMember} activeOpacity={0.8}>
-          <LinearGradient
-            colors={[COLORS.gradientStart, COLORS.gradientEnd]}
-            style={styles.addBtn}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-          >
-            <Ionicons name="person-add-outline" size={15} color={COLORS.white} />
-            <Text style={styles.addBtnText}>Add</Text>
-          </LinearGradient>
-        </TouchableOpacity>
+        {isAdmin && (
+          <TouchableOpacity style={styles.addBtnWrap} onPress={onAddMember} activeOpacity={0.8}>
+            <LinearGradient
+              colors={[COLORS.gradientStart, COLORS.gradientEnd]}
+              style={styles.addBtn}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+            >
+              <Ionicons name="person-add-outline" size={15} color={COLORS.white} />
+              <Text style={styles.addBtnText}>Add</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        )}
       </View>
     </TouchableOpacity>
   );

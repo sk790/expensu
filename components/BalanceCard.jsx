@@ -2,9 +2,20 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { COLORS, SHADOWS } from '../utils/constants';
 
-export default function BalanceCard({ balance }) {
+const CURRENCY_SYMBOLS = {
+  INR: "₹",
+  USD: "$",
+  EUR: "€",
+  GBP: "£",
+  JPY: "¥",
+  CAD: "C$",
+  AUD: "A$",
+};
+
+export default function BalanceCard({ balance, currency = "INR" }) {
   const isPositive = balance.netBalance > 0;
   const isNegative = balance.netBalance < 0;
+  const currencySymbol = CURRENCY_SYMBOLS[currency] || "₹";
 
   return (
     <View style={styles.card}>
@@ -22,7 +33,7 @@ export default function BalanceCard({ balance }) {
           isPositive && styles.positive,
           isNegative && styles.negative
         ]}>
-          {isPositive ? '+' : ''}{isNegative ? '-' : ''}₹{Math.abs(balance.netBalance).toFixed(2)}
+          {isPositive ? '+' : ''}{isNegative ? '-' : ''}{currencySymbol}{Math.abs(balance.netBalance).toFixed(2)}
         </Text>
       </View>
 
@@ -32,7 +43,7 @@ export default function BalanceCard({ balance }) {
           {balance.owesTo.map((debt) => (
             <View key={debt.userId} style={styles.debtRow}>
               <Text style={styles.debtName}>{debt.name}</Text>
-              <Text style={styles.debtAmount}>₹{debt.amount.toFixed(2)}</Text>
+              <Text style={styles.debtAmount}>{currencySymbol}{debt.amount.toFixed(2)}</Text>
             </View>
           ))}
         </View>
@@ -44,7 +55,7 @@ export default function BalanceCard({ balance }) {
           {balance.owedBy.map((debt) => (
             <View key={debt.userId} style={styles.debtRow}>
               <Text style={styles.debtName}>{debt.name}</Text>
-              <Text style={styles.debtAmount}>₹{debt.amount.toFixed(2)}</Text>
+              <Text style={styles.debtAmount}>{currencySymbol}{debt.amount.toFixed(2)}</Text>
             </View>
           ))}
         </View>

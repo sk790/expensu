@@ -23,12 +23,24 @@ import * as Haptics from "expo-haptics";
 import CustomAlert from "../../components/CustomAlert";
 import { useAlert } from "../../hooks/useAlert";
 
+const SUPPORTED_CURRENCIES = [
+  { code: "INR", label: "Indian Rupee (₹)", symbol: "₹" },
+  { code: "USD", label: "US Dollar ($)", symbol: "$" },
+  { code: "EUR", label: "Euro (€)", symbol: "€" },
+  { code: "GBP", label: "British Pound (£)", symbol: "£" },
+  { code: "JPY", label: "Japanese Yen (¥)", symbol: "¥" },
+  { code: "CAD", label: "Canadian Dollar (C$)", symbol: "C$" },
+  { code: "AUD", label: "Australian Dollar (A$)", symbol: "A$" },
+];
+
 export default function CreateGroupScreen({ navigation, route }) {
   const groupToEdit = route.params?.group;
   const isEditing = !!groupToEdit;
   const insets = useSafeAreaInsets();
 
   const [groupName, setGroupName] = useState(groupToEdit?.name || "");
+  const [currency, setCurrency] = useState(groupToEdit?.currency || "INR");
+  const [currencyDropdownOpen, setCurrencyDropdownOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [focused, setFocused] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -98,7 +110,7 @@ export default function CreateGroupScreen({ navigation, route }) {
 
     try {
       if (isEditing) {
-        await groupService.updateGroup(groupToEdit._id, groupName.trim());
+        await groupService.updateGroup(groupToEdit._id, groupName.trim(), currency);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         showAlert({
           type: "success",
@@ -111,6 +123,7 @@ export default function CreateGroupScreen({ navigation, route }) {
         const response = await groupService.createGroup(
           groupName.trim(),
           memberIds,
+          currency,
         );
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         showAlert({
@@ -249,6 +262,78 @@ export default function CreateGroupScreen({ navigation, route }) {
               </TouchableOpacity>
             )}
           </View>
+        </AnimatedView>
+
+        {/* Currency Card */}
+        <AnimatedView
+          entering={FadeInDown.duration(400).delay(150)}
+          style={[styles.card, SHADOWS.soft, { zIndex: 10 }]}
+        >
+          <Text style={styles.inputLabel}>Group Currency</Text>
+          
+          <TouchableOpacity
+            style={[
+              styles.inputWrap,
+              currencyDropdownOpen && styles.inputWrapFocused,
+              { marginTop: 8, justifyContent: "space-between", paddingVertical: 12 }
+            ]}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setCurrencyDropdownOpen(!currencyDropdownOpen);
+            }}
+            activeOpacity={0.8}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <View style={[styles.currencyIconBadge, { backgroundColor: COLORS.primary + "15" }]}>
+                <Text style={styles.currencySymbolPreview}>
+                  {SUPPORTED_CURRENCIES.find(c => c.code === currency)?.symbol || "₹"}
+                </Text>
+              </View>
+              <Text style={styles.selectedCurrencyLabel}>
+                {SUPPORTED_CURRENCIES.find(c => c.code === currency)?.label || "Indian Rupee (₹)"}
+              </Text>
+            </View>
+            <Ionicons
+              name={currencyDropdownOpen ? "chevron-up" : "chevron-down"}
+              size={20}
+              color={COLORS.gray}
+            />
+          </TouchableOpacity>
+
+          {currencyDropdownOpen && (
+            <AnimatedView entering={FadeInDown.duration(200)} style={styles.currencyList}>
+              {SUPPORTED_CURRENCIES.map((item) => {
+                const isSelected = item.code === currency;
+                return (
+                  <TouchableOpacity
+                    key={item.code}
+                    style={[
+                      styles.currencyItem,
+                      isSelected && styles.currencyItemActive
+                    ]}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                      setCurrency(item.code);
+                      setCurrencyDropdownOpen(false);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                      <Text style={[styles.currencyItemSymbol, isSelected && { color: COLORS.primary }]}>
+                        {item.symbol}
+                      </Text>
+                      <Text style={[styles.currencyItemLabel, isSelected && { color: COLORS.primary, fontWeight: "750" }]}>
+                        {item.label}
+                      </Text>
+                    </View>
+                    {isSelected && (
+                      <Ionicons name="checkmark-circle" size={18} color={COLORS.primary} />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </AnimatedView>
+          )}
         </AnimatedView>
 
         {/* Members Card */}
@@ -591,5 +676,55 @@ const styles = StyleSheet.create({
     marginTop: 6,
     textAlign: "center",
     width: "100%",
+  },
+  currencyIconBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 10,
+  },
+  currencySymbolPreview: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: COLORS.primary,
+  },
+  selectedCurrencyLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: COLORS.dark,
+  },
+  currencyList: {
+    marginTop: 10,
+    backgroundColor: "#F9FAFC",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#EBEBF2",
+    overflow: "hidden",
+  },
+  currencyItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 0.5,
+    borderBottomColor: "#EBEBF2",
+  },
+  currencyItemActive: {
+    backgroundColor: COLORS.primary + "08",
+  },
+  currencyItemSymbol: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: COLORS.gray,
+    width: 20,
+    textAlign: "center",
+  },
+  currencyItemLabel: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: COLORS.dark,
   },
 });

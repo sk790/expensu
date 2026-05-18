@@ -34,8 +34,8 @@ export const authService = {
 };
 
 export const groupService = {
-  async createGroup(name, members) {
-    const response = await api.post("groups", { name, members });
+  async createGroup(name, members, currency) {
+    const response = await api.post("groups", { name, members, currency });
     return response.data;
   },
 
@@ -58,24 +58,26 @@ export const groupService = {
     return response.data;
   },
 
-  async addExpense(groupId, amount, splitBetween, description, paidBy) {
+  async addExpense(groupId, amount, splitBetween, description, paidBy, category) {
     const response = await api.post(`groups/${groupId}/expenses`, {
       amount,
       splitBetween,
       description,
       paidBy,
+      category,
     });
     console.log(response);
     
     return response.data;
   },
 
-  async editExpense(groupId, expenseId, amount, splitBetween, description, paidBy) {
+  async editExpense(groupId, expenseId, amount, splitBetween, description, paidBy, category) {
     const response = await api.put(`groups/${groupId}/expenses/${expenseId}`, {
       amount,
       splitBetween,
       description,
       paidBy,
+      category,
     });
     return response.data;
   },
@@ -126,8 +128,8 @@ export const groupService = {
     return response.data;
   },
 
-  async updateGroup(groupId, name) {
-    const response = await api.put(`groups/${groupId}`, { name });
+  async updateGroup(groupId, name, currency) {
+    const response = await api.put(`groups/${groupId}`, { name, currency });
     return response.data;
   },
 };
@@ -193,5 +195,17 @@ export const aiService = {
     const response = await api.post("ai/chat", { message, history });
     return response.data;
   },
+};
+
+export const categoryService = {
+  async getCategories() {
+    const response = await api.get("categories");
+    return response.data;
+  },
+
+  async createCategory(name, icon, color) {
+    const response = await api.post("categories", { name, icon, color });
+    return response.data;
+  }
 };
 

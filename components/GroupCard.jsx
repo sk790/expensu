@@ -7,7 +7,17 @@ import {
   View,
   Image,
 } from "react-native";
-import { COLORS, SHADOWS } from "../utils/constants";
+import { COLORS } from "../utils/constants";
+
+const CURRENCY_SYMBOLS = {
+  INR: "₹",
+  USD: "$",
+  EUR: "€",
+  GBP: "£",
+  JPY: "¥",
+  CAD: "C$",
+  AUD: "A$",
+};
 
 // Deterministic gradient-like accent from group name
 const GROUP_ACCENTS = [
@@ -50,39 +60,42 @@ export default function GroupCard({ group, onPress }) {
       onPress={onPress}
       activeOpacity={0.85}
     >
-      {/* Dynamic Accent Header */}
-      <View style={[styles.cardHeader, { backgroundColor: accent.light }]}>
-        <View style={[styles.avatarCircle, { backgroundColor: accent.bg }]}>
-          <Text style={styles.avatarInitials}>{initials}</Text>
-        </View>
-        <View style={styles.amountBadge}>
-          <Text style={[styles.amountLabel, { color: accent.bg }]}>Total Spent</Text>
-          <Text style={[styles.amountValue, { color: accent.bg }]}>₹{totalExpense.toFixed(0)}</Text>
-        </View>
-      </View>
-
-      <View style={styles.cardBody}>
-        {/* Main Info */}
-        <View style={styles.mainInfo}>
-          <Text style={styles.name} numberOfLines={1}>
-            {group.name}
-          </Text>
+      <View style={styles.cardContent}>
+        {/* Top Info Row */}
+        <View style={styles.topInfoRow}>
+          {/* Group Avatar Squircle */}
+          <View style={[styles.avatarCircle, { backgroundColor: accent.bg }]}>
+            <Text style={styles.avatarInitials}>{initials}</Text>
+          </View>
           
-          <View style={styles.statsRow}>
-            <View style={styles.statItem}>
-              <Ionicons name="people-outline" size={14} color={COLORS.gray} />
-              <Text style={styles.statText}>{memberCount} members</Text>
+          {/* Title & Admin Block */}
+          <View style={styles.nameBlock}>
+            <Text style={styles.name} numberOfLines={1}>
+              {group.name}
+            </Text>
+            <View style={styles.adminRow}>
+              <Ionicons name="shield-checkmark" size={11} color={accent.bg} />
+              <Text style={[styles.adminText, { color: accent.bg }]} numberOfLines={1}>
+                Admin: {group.createdBy?.name || "Unknown"}
+              </Text>
             </View>
-            <View style={styles.statDot} />
-            <View style={styles.statItem}>
-              <Ionicons name="receipt-outline" size={14} color={COLORS.gray} />
-              <Text style={styles.statText}>{expenseCount} bills</Text>
-            </View>
+          </View>
+
+          {/* Amount Spent Badge */}
+          <View style={styles.amountBadge}>
+            <Text style={styles.amountLabel}>Total Spent</Text>
+            <Text style={[styles.amountValue, { color: accent.bg }]}>
+              {CURRENCY_SYMBOLS[group.currency] || "₹"}{totalExpense.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+            </Text>
           </View>
         </View>
 
-        {/* Member Footer */}
+        {/* Dynamic Divider */}
+        <View style={styles.divider} />
+
+        {/* Bottom Metadata Footer */}
         <View style={styles.cardFooter}>
+          {/* Overlapping Members Stack */}
           <View style={styles.avatarStack}>
             {previewMembers.map((m, i) => {
               const memberInitial = (m.name ?? m.email ?? "?")[0].toUpperCase();
@@ -94,9 +107,8 @@ export default function GroupCard({ group, onPress }) {
                     styles.memberBubble,
                     {
                       backgroundColor: memberAccent.bg,
-                      marginLeft: i === 0 ? 0 : -10,
+                      marginLeft: i === 0 ? 0 : -8,
                       zIndex: 10 - i,
-                      borderColor: "#FFF",
                     },
                   ]}
                 >
@@ -109,14 +121,31 @@ export default function GroupCard({ group, onPress }) {
               );
             })}
             {memberCount > 3 && (
-              <View style={[styles.memberBubble, styles.moreBubble, { marginLeft: -10, zIndex: 0, borderColor: "#FFF" }]}>
+              <View style={[styles.memberBubble, styles.moreBubble, { marginLeft: -8, zIndex: 0 }]}>
                 <Text style={styles.moreText}>+{memberCount - 3}</Text>
               </View>
             )}
           </View>
 
-          <View style={[styles.chevronWrap, { backgroundColor: accent.bg + "15" }]}>
-            <Ionicons name="chevron-forward" size={16} color={accent.bg} />
+          {/* Spacer */}
+          <View style={{ flex: 1 }} />
+
+          {/* Members & Bills Count Badges */}
+          <View style={styles.statsRow}>
+            <View style={styles.statItem}>
+              <Ionicons name="people-outline" size={13} color={COLORS.gray} />
+              <Text style={styles.statText}>{memberCount} members</Text>
+            </View>
+            <View style={styles.statDot} />
+            <View style={styles.statItem}>
+              <Ionicons name="receipt-outline" size={13} color={COLORS.gray} />
+              <Text style={styles.statText}>{expenseCount} bills</Text>
+            </View>
+          </View>
+
+          {/* Sleek action arrow wrapper */}
+          <View style={[styles.chevronWrap, { backgroundColor: accent.bg + "10" }]}>
+            <Ionicons name="chevron-forward" size={14} color={accent.bg} />
           </View>
         </View>
       </View>
@@ -127,65 +156,118 @@ export default function GroupCard({ group, onPress }) {
 const styles = StyleSheet.create({
   card: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 24,
+    borderRadius: 20,
     marginHorizontal: 16,
-    marginVertical: 10,
+    marginVertical: 8,
     borderWidth: 1,
-    borderColor: "rgba(0,0,0,0.03)",
-    ...SHADOWS.soft,
+    borderColor: "#F0F0F0",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.03,
+    shadowRadius: 10,
+    elevation: 2,
   },
-  cardHeader: {
+  cardContent: {
+    padding: 16,
+  },
+  topInfoRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    padding: 16,
-    paddingBottom: 12,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
   },
   avatarCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
     justifyContent: "center",
     alignItems: "center",
+    marginRight: 12,
   },
   avatarInitials: {
-    fontSize: 18,
-    fontWeight: "bold",
+    fontSize: 16,
+    fontWeight: "800",
     color: "#FFFFFF",
+    letterSpacing: 0.5,
+  },
+  nameBlock: {
+    flex: 1,
+    marginRight: 8,
+  },
+  name: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: COLORS.dark,
+    marginBottom: 3,
+  },
+  adminRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+  },
+  adminText: {
+    fontSize: 11,
+    fontWeight: "600",
   },
   amountBadge: {
     alignItems: "flex-end",
   },
   amountLabel: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: "700",
+    color: COLORS.gray,
     textTransform: "uppercase",
     letterSpacing: 0.5,
-    opacity: 0.7,
+    marginBottom: 2,
   },
   amountValue: {
-    fontSize: 20,
+    fontSize: 17,
     fontWeight: "800",
   },
-  cardBody: {
-    padding: 16,
-    paddingTop: 8,
+  divider: {
+    height: 1,
+    backgroundColor: "#F3F4F6",
+    marginVertical: 12,
   },
-  mainInfo: {
-    marginBottom: 16,
+  cardFooter: {
+    flexDirection: "row",
+    alignItems: "center",
   },
-  name: {
-    fontSize: 19,
+  avatarStack: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  memberBubble: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
+  },
+  memberInitial: {
+    fontSize: 10,
     fontWeight: "800",
-    color: "#1A1A2E",
-    marginBottom: 4,
+    color: "#FFFFFF",
+  },
+  memberAvatarImage: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 11,
+  },
+  moreBubble: {
+    backgroundColor: "#F3F4F6",
+    borderColor: "#FFFFFF",
+  },
+  moreText: {
+    fontSize: 9,
+    fontWeight: "800",
+    color: "#6B7280",
   },
   statsRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 6,
+    marginRight: 10,
   },
   statItem: {
     flexDirection: "row",
@@ -193,59 +275,20 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   statText: {
-    fontSize: 13,
+    fontSize: 12,
     color: COLORS.gray,
-    fontWeight: "600",
+    fontWeight: "700",
   },
   statDot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
     backgroundColor: "#D1D5DB",
   },
-  cardFooter: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    borderTopWidth: 1,
-    borderTopColor: "rgba(0,0,0,0.05)",
-    paddingTop: 14,
-  },
-  avatarStack: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  memberBubble: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 2,
-    borderColor: "transparent",
-  },
-  memberInitial: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: "#FFFFFF",
-  },
-  memberAvatarImage: {
-    width: "100%",
-    height: "100%",
-    borderRadius: 12,
-  },
-  moreBubble: {
-    backgroundColor: "#F3F4F6",
-  },
-  moreText: {
-    fontSize: 10,
-    fontWeight: "700",
-    color: "#6B7280",
-  },
   chevronWrap: {
-    width: 32,
-    height: 32,
-    borderRadius: 12,
+    width: 26,
+    height: 26,
+    borderRadius: 8,
     justifyContent: "center",
     alignItems: "center",
   },

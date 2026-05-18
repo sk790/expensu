@@ -10,8 +10,9 @@ import {
   View,
   KeyboardAvoidingView,
   Platform, Image,
+  Modal,
 } from "react-native";
-import { groupService } from "../../services/authService";
+import { groupService, categoryService } from "../../services/authService";
 import { COLORS } from "../../utils/constants";
 import Animated, { FadeInDown, FadeInUp, Layout, ZoomIn } from "react-native-reanimated";
 import AnimatedView from "../../components/AnimatedView";
@@ -21,6 +22,16 @@ import CustomAlert from "../../components/CustomAlert";
 import { useAlert } from "../../hooks/useAlert";
 import { useAuth } from "../../context/AuthContext";
 
+const CURRENCY_SYMBOLS = {
+  INR: "₹",
+  USD: "$",
+  EUR: "€",
+  GBP: "£",
+  JPY: "¥",
+  CAD: "C$",
+  AUD: "A$",
+};
+
 const getInitials = (name) => {
   if (!name) return "?";
   return name.substring(0, 2).toUpperCase();
@@ -29,6 +40,7 @@ const getInitials = (name) => {
 export default function AddExpenseScreen({ route, navigation }) {
   const { groupId, members, isEditing, expenseData } = route.params; const uniqueMembers = React.useMemo(() => { const seen = new Set(); const result = []; (members || []).forEach((m) => { if (m && m._id && !seen.has(m._id)) { seen.add(m._id); result.push(m); } }); return result; }, [members]);
   const { alertProps, showAlert } = useAlert(); const { user: currentUser } = useAuth();
+  const [group, setGroup] = useState(null);
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
   const [paidBy, setPaidBy] = useState(() => {
@@ -49,6 +61,30 @@ export default function AddExpenseScreen({ route, navigation }) {
   const [customAmounts, setCustomAmounts] = useState({});
   const [loading, setLoading] = useState(false);
   const [focusedInput, setFocusedInput] = useState(null);
+
+  const [categories, setCategories] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [categoryModalVisible, setCategoryModalVisible] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [newCategoryIcon, setNewCategoryIcon] = useState("receipt-outline");
+  const [newCategoryColor, setNewCategoryColor] = useState("#6C63FF");
+  const [creatingCategory, setCreatingCategory] = useState(false);
+
+  useEffect(() => {
+    const fetchGroupDetails = async () => {
+      try {
+        const response = await groupService.getGroup(groupId);
+        if (response.data) {
+          setGroup(response.data);
+        }
+      } catch (error) {
+        console.log("Failed to fetch group details in AddExpenseScreen:", error);
+      }
+    };
+    fetchGroupDetails();
+  }, [groupId]);
+
+  const currencySymbol = group ? (CURRENCY_SYMBOLS[group.currency] || "₹") : "₹";
 
   useEffect(() => {
     if (isEditing && expenseData) {
@@ -89,6 +125,32 @@ export default function AddExpenseScreen({ route, navigation }) {
     }
   }, [isEditing, expenseData, uniqueMembers, currentUser]);
 
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const res = await categoryService.getCategories();
+        let cats = res.data || [];
+        // Reorder: Move 'Others' to the first position
+        const othersIndex = cats.findIndex(c => c.name.toLowerCase() === "others" || c.name === "Others");
+        if (othersIndex > -1) {
+          const othersCat = cats[othersIndex];
+          cats.splice(othersIndex, 1);
+          cats.unshift(othersCat);
+        }
+        setCategories(cats);
+        
+        if (isEditing && expenseData && expenseData.category) {
+          setSelectedCategory(expenseData.category._id || expenseData.category);
+        } else if (cats.length > 0) {
+          setSelectedCategory(cats[0]._id);
+        }
+      } catch (error) {
+        console.log("Failed to fetch categories:", error);
+      }
+    };
+    fetchCategories();
+  }, [isEditing, expenseData]);
+
   const handleCustomAmountChange = (memberId, value) => {
     setCustomAmounts((prev) => ({
       ...prev,
@@ -100,6 +162,41 @@ export default function AddExpenseScreen({ route, navigation }) {
     if (splitType !== type) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       setSplitType(type);
+    }
+  };
+
+  const handleCreateCategory = async () => {
+    if (!newCategoryName.trim()) {
+      showAlert({
+        type: "error",
+        title: "Missing Name",
+        message: "Please enter a category name."
+      });
+      return;
+    }
+    setCreatingCategory(true);
+    try {
+      const res = await categoryService.createCategory(
+        newCategoryName.trim(),
+        newCategoryIcon,
+        newCategoryColor
+      );
+      if (res.success) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        const updatedCats = await categoryService.getCategories();
+        setCategories(updatedCats.data || []);
+        setSelectedCategory(res.data._id);
+        setCategoryModalVisible(false);
+        setNewCategoryName("");
+      }
+    } catch (error) {
+      showAlert({
+        type: "error",
+        title: "Failed to Create",
+        message: error.response?.data?.message || "Failed to create category"
+      });
+    } finally {
+      setCreatingCategory(false);
     }
   };
 
@@ -130,7 +227,7 @@ export default function AddExpenseScreen({ route, navigation }) {
 
       if (Math.abs(totalEntered - targetAmount) > 0.01) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        showAlert({ type: "warning", title: "Amount Mismatch", message: `Total split (₹${totalEntered.toFixed(2)}) must equal the expense amount (₹${targetAmount.toFixed(2)}).` });
+        showAlert({ type: "warning", title: "Amount Mismatch", message: `Total split (${currencySymbol}${totalEntered.toFixed(2)}) must equal the expense amount (${currencySymbol}${targetAmount.toFixed(2)}).` });
         return;
       }
 
@@ -149,7 +246,7 @@ export default function AddExpenseScreen({ route, navigation }) {
           expenseData.id,
           parseFloat(amount),
           finalSplitData,
-          description.trim(), paidBy,
+          description.trim(), paidBy, selectedCategory
         );
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         showAlert({
@@ -162,7 +259,7 @@ export default function AddExpenseScreen({ route, navigation }) {
           groupId,
           parseFloat(amount),
           finalSplitData,
-          description.trim(), paidBy,
+          description.trim(), paidBy, selectedCategory
         );
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         showAlert({
@@ -235,7 +332,7 @@ export default function AddExpenseScreen({ route, navigation }) {
         <AnimatedView entering={FadeInDown.duration(400).delay(200)} style={styles.formCard}>
           <View style={[styles.inputGroup, focusedInput === 'amount' && styles.inputGroupFocused]}>
             <View style={styles.currencySymbolContainer}>
-              <Text style={styles.currencySymbol}>₹</Text>
+              <Text style={styles.currencySymbol}>{currencySymbol}</Text>
             </View>
             <TextInput
               style={styles.amountInput}
@@ -262,6 +359,62 @@ export default function AddExpenseScreen({ route, navigation }) {
               onFocus={() => setFocusedInput('desc')}
               onBlur={() => setFocusedInput(null)}
             />
+          </View>
+        </AnimatedView>
+
+        {/* Category Selector */}
+        <AnimatedView entering={FadeInDown.duration(400).delay(220)}>
+          <Text style={styles.sectionLabel}>Category</Text>
+          <View style={styles.categoryCard}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryScroll}>
+              {categories.map((cat) => {
+                const isSelected = selectedCategory === cat._id;
+                const activeColor = cat.color || COLORS.primary;
+                return (
+                  <TouchableOpacity
+                    key={cat._id}
+                    style={[
+                      styles.categoryBubble,
+                      isSelected && { borderColor: activeColor, backgroundColor: activeColor + "08" }
+                    ]}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setSelectedCategory(cat._id);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.categoryIconCircle, { backgroundColor: activeColor + "15" }]}>
+                      <Ionicons name={cat.icon || "receipt-outline"} size={20} color={activeColor} />
+                      {isSelected && (
+                        <AnimatedView entering={ZoomIn} style={[styles.categoryCheckBadge, { backgroundColor: activeColor }]}>
+                          <Ionicons name="checkmark" size={10} color={COLORS.white} />
+                        </AnimatedView>
+                      )}
+                    </View>
+                    <Text style={[styles.categoryLabelText, isSelected && { color: activeColor, fontWeight: "bold" }]} numberOfLines={1}>
+                      {cat.name}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+              
+              {/* Add Custom Category Button */}
+              <TouchableOpacity
+                style={styles.categoryBubble}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setCategoryModalVisible(true);
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.categoryIconCircle, { backgroundColor: "#E5E7EB", borderStyle: "dashed", borderWidth: 1.5, borderColor: "#9CA3AF" }]}>
+                  <Ionicons name="add-outline" size={22} color="#4B5563" />
+                </View>
+                <Text style={styles.categoryLabelText} numberOfLines={1}>
+                  Custom
+                </Text>
+              </TouchableOpacity>
+            </ScrollView>
           </View>
         </AnimatedView>
 
@@ -393,33 +546,60 @@ export default function AddExpenseScreen({ route, navigation }) {
         {/* Split Type Toggle */}
         <AnimatedView entering={FadeInDown.duration(400).delay(300)}>
           <Text style={styles.sectionLabel}>Split Method</Text>
-          <View style={styles.splitTypeContainer}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.splitTypeScroll}
+            contentContainerStyle={styles.splitTypeScrollContent}
+          >
             <TouchableOpacity
-              style={styles.splitTypeButton}
+              style={[
+                styles.splitTypeButtonNew,
+                splitType === "equal" && styles.splitTypeButtonActive,
+              ]}
               onPress={() => handleSplitTypeChange("equal")}
               activeOpacity={0.8}
             >
-              {splitType === "equal" && (
-                <AnimatedView layout={Layout.springify()} style={styles.activeSplitBg} />
-              )}
-              <Text style={[styles.splitTypeText, splitType === "equal" && styles.activeSplitTypeText]}>
+              <Ionicons
+                name="people-outline"
+                size={16}
+                color={splitType === "equal" ? COLORS.white : COLORS.gray}
+                style={{ marginRight: 6 }}
+              />
+              <Text
+                style={[
+                  styles.splitTypeTextNew,
+                  splitType === "equal" && styles.splitTypeTextActive,
+                ]}
+              >
                 Equally
               </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.splitTypeButton}
+              style={[
+                styles.splitTypeButtonNew,
+                splitType === "custom" && styles.splitTypeButtonActive,
+              ]}
               onPress={() => handleSplitTypeChange("custom")}
               activeOpacity={0.8}
             >
-              {splitType === "custom" && (
-                <AnimatedView layout={Layout.springify()} style={styles.activeSplitBg} />
-              )}
-              <Text style={[styles.splitTypeText, splitType === "custom" && styles.activeSplitTypeText]}>
-                Custom
+              <Ionicons
+                name="options-outline"
+                size={16}
+                color={splitType === "custom" ? COLORS.white : COLORS.gray}
+                style={{ marginRight: 6 }}
+              />
+              <Text
+                style={[
+                  styles.splitTypeTextNew,
+                  splitType === "custom" && styles.splitTypeTextActive,
+                ]}
+              >
+                Custom Amount
               </Text>
             </TouchableOpacity>
-          </View>
+          </ScrollView>
         </AnimatedView>
 
         {/* Members List */}
@@ -449,7 +629,7 @@ export default function AddExpenseScreen({ route, navigation }) {
                 <View style={styles.memberAction}>
                   {splitType === "custom" && selectedMembers[member._id] && (
                     <AnimatedView entering={ZoomIn} style={styles.customAmountContainer}>
-                      <Text style={styles.customCurrency}>₹</Text>
+                      <Text style={styles.customCurrency}>{currencySymbol}</Text>
                       <TextInput
                         style={styles.customAmountInput}
                         placeholder="0"
@@ -484,7 +664,7 @@ export default function AddExpenseScreen({ route, navigation }) {
               </View>
               <View style={styles.summaryTextContainer}>
                 <Text style={styles.summaryLabel}>Each person pays</Text>
-                <Text style={styles.summaryValue}>₹{perPersonAmount}</Text>
+                <Text style={styles.summaryValue}>{currencySymbol}{perPersonAmount}</Text>
               </View>
             </View>
           )}
@@ -505,7 +685,7 @@ export default function AddExpenseScreen({ route, navigation }) {
                     : `${remaining > 0 ? "Remaining" : "Exceeded"} amount`}
                 </Text>
                 <Text style={[styles.summaryValue, { color: Math.abs(remaining) > 0.01 ? COLORS.danger : COLORS.success }]}>
-                  {Math.abs(remaining) < 0.01 ? `Total: ₹${parseFloat(amount).toFixed(2)}` : `₹${Math.abs(remaining).toFixed(2)}`}
+                  {Math.abs(remaining) < 0.01 ? `Total: ${currencySymbol}${parseFloat(amount).toFixed(2)}` : `${currencySymbol}${Math.abs(remaining).toFixed(2)}`}
                 </Text>
               </View>
             </View>
@@ -531,6 +711,130 @@ export default function AddExpenseScreen({ route, navigation }) {
         </AnimatedView>
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* Custom Category Creation Sheet/Modal */}
+      <Modal
+        visible={categoryModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setCategoryModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={styles.modalContainer}
+          >
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Create Custom Category</Text>
+                <TouchableOpacity
+                  onPress={() => setCategoryModalVisible(false)}
+                  style={styles.modalCloseButton}
+                >
+                  <Ionicons name="close" size={20} color={COLORS.dark} />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 10 }}>
+                {/* Category Name Input */}
+                <Text style={styles.modalLabel}>Category Name</Text>
+                <View style={styles.modalInputGroup}>
+                  <TextInput
+                    style={styles.modalTextInput}
+                    placeholder="E.g. Gym, Pet Care, Gifts"
+                    value={newCategoryName}
+                    onChangeText={setNewCategoryName}
+                    placeholderTextColor={COLORS.gray}
+                  />
+                </View>
+
+                {/* Color Selector */}
+                <Text style={styles.modalLabel}>Choose Theme Color</Text>
+                <View style={styles.colorPaletteGrid}>
+                  {[
+                    "#6C63FF", // Violet
+                    "#FF6584", // Soft Red
+                    "#FB8C00", // Orange
+                    "#8E24AA", // Purple
+                    "#00ACC1", // Teal
+                    "#00897B", // Deep Green
+                    "#4CAF50", // Green
+                    "#E91E63", // Pink
+                  ].map((color) => {
+                    const isColorSelected = newCategoryColor === color;
+                    return (
+                      <TouchableOpacity
+                        key={color}
+                        style={[
+                          styles.colorPalettePill,
+                          { backgroundColor: color },
+                          isColorSelected && styles.colorPalettePillActive,
+                        ]}
+                        onPress={() => {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          setNewCategoryColor(color);
+                        }}
+                      />
+                    );
+                  })}
+                </View>
+
+                {/* Icon Selector */}
+                <Text style={styles.modalLabel}>Choose Icon</Text>
+                <View style={styles.iconSelectionGrid}>
+                  {[
+                    "receipt-outline",
+                    "fast-food-outline",
+                    "car-outline",
+                    "home-outline",
+                    "film-outline",
+                    "cart-outline",
+                    "gift-outline",
+                    "medkit-outline",
+                    "book-outline",
+                    "barbell-outline",
+                    "paw-outline",
+                    "briefcase-outline",
+                  ].map((iconName) => {
+                    const isIconSelected = newCategoryIcon === iconName;
+                    return (
+                      <TouchableOpacity
+                        key={iconName}
+                        style={[
+                          styles.iconSelectionPill,
+                          isIconSelected && { backgroundColor: newCategoryColor + "15", borderColor: newCategoryColor }
+                        ]}
+                        onPress={() => {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          setNewCategoryIcon(iconName);
+                        }}
+                      >
+                        <Ionicons
+                          name={iconName}
+                          size={22}
+                          color={isIconSelected ? newCategoryColor : COLORS.gray}
+                        />
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </ScrollView>
+
+              <TouchableOpacity
+                style={[styles.modalSubmitButton, { backgroundColor: newCategoryColor }]}
+                onPress={handleCreateCategory}
+                disabled={creatingCategory}
+              >
+                {creatingCategory ? (
+                  <ActivityIndicator color={COLORS.white} />
+                ) : (
+                  <Text style={styles.modalSubmitButtonText}>Create Category</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -932,23 +1236,29 @@ const styles = StyleSheet.create({
   customAmountContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F5F5F5",
-    borderRadius: 8,
-    paddingHorizontal: 8,
+    backgroundColor: COLORS.white,
+    borderRadius: 10,
+    paddingHorizontal: 10,
     marginRight: 12,
-    borderWidth: 1,
-    borderColor: "#E0E0E0",
+    borderWidth: 1.5,
+    borderColor: COLORS.primary + "35",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    elevation: 1,
   },
   customCurrency: {
     fontSize: 14,
-    color: COLORS.gray,
-    marginRight: 4,
+    fontWeight: "700",
+    color: COLORS.primary,
+    marginRight: 2,
   },
   customAmountInput: {
-    width: 60,
+    width: 65,
     paddingVertical: 6,
     fontSize: 14,
-    fontWeight: "600",
+    fontWeight: "700",
     color: COLORS.dark,
     textAlign: "right",
   },
@@ -1022,5 +1332,199 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
     marginRight: 8,
+  },
+  splitTypeScroll: {
+    marginBottom: 16,
+  },
+  splitTypeScrollContent: {
+    gap: 10,
+    paddingHorizontal: 4,
+    paddingVertical: 4,
+  },
+  splitTypeButtonNew: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: COLORS.white,
+    borderWidth: 1.5,
+    borderColor: "#E5E7EB",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    elevation: 1,
+  },
+  splitTypeButtonActive: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  splitTypeTextNew: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: COLORS.gray,
+  },
+  splitTypeTextActive: {
+    color: COLORS.white,
+  },
+  categoryCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: 16,
+    padding: 12,
+    marginBottom: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  categoryScroll: {
+    paddingHorizontal: 4,
+  },
+  categoryBubble: {
+    alignItems: "center",
+    marginRight: 16,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: "transparent",
+    width: 74,
+  },
+  categoryIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 6,
+    position: "relative",
+  },
+  categoryCheckBadge: {
+    position: "absolute",
+    bottom: -2,
+    right: -2,
+    borderRadius: 7,
+    width: 14,
+    height: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: COLORS.white,
+  },
+  categoryLabelText: {
+    fontSize: 10,
+    color: COLORS.gray,
+    fontWeight: "500",
+    textAlign: "center",
+    width: "100%",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
+  },
+  modalContainer: {
+    width: "100%",
+  },
+  modalContent: {
+    backgroundColor: COLORS.white,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: Platform.OS === "ios" ? 40 : 24,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: COLORS.dark,
+  },
+  modalCloseButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#F3F4F6",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalLabel: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: COLORS.dark,
+    marginBottom: 8,
+    marginTop: 10,
+  },
+  modalInputGroup: {
+    borderWidth: 1.5,
+    borderColor: "#F0F0F0",
+    borderRadius: 12,
+    backgroundColor: "#FAFAFA",
+    marginBottom: 16,
+  },
+  modalTextInput: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 14,
+    color: COLORS.dark,
+  },
+  colorPaletteGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+    marginBottom: 16,
+  },
+  colorPalettePill: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    borderWidth: 3,
+    borderColor: "transparent",
+  },
+  colorPalettePillActive: {
+    borderColor: "#E5E7EB",
+  },
+  iconSelectionGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+    marginBottom: 24,
+  },
+  iconSelectionPill: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: "#F3F4F6",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "transparent",
+  },
+  modalSubmitButton: {
+    paddingVertical: 14,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  modalSubmitButtonText: {
+    color: COLORS.white,
+    fontSize: 15,
+    fontWeight: "bold",
   },
 });

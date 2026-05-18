@@ -17,6 +17,7 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  RefreshControl,
 } from "react-native";
 import Animated, {
   FadeInDown,
@@ -34,6 +35,16 @@ import { useAuth } from "../../context/AuthContext";
 import { useAlert } from "../../hooks/useAlert";
 import CustomAlert from "../../components/CustomAlert";
 
+const CURRENCY_SYMBOLS = {
+  INR: "₹",
+  USD: "$",
+  EUR: "€",
+  GBP: "£",
+  JPY: "¥",
+  CAD: "C$",
+  AUD: "A$",
+};
+
 export default function GroupDetailScreen({ route, navigation }) {
   const { groupId } = route.params;
   const { user: currentUser } = useAuth();
@@ -44,6 +55,7 @@ export default function GroupDetailScreen({ route, navigation }) {
   const [activeTab, setActiveTab] = useState("expenses");
   const [inviteLink, setInviteLink] = useState("");
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [settleModalVisible, setSettleModalVisible] = useState(false);
   const [settleData, setSettleData] = useState(null);
   const [customSettleAmount, setCustomSettleAmount] = useState("");
@@ -51,6 +63,8 @@ export default function GroupDetailScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
   const [exporting, setExporting] = useState(false);
   const { alertProps, showAlert } = useAlert();
+
+  const currencySymbol = CURRENCY_SYMBOLS[group?.currency] || "₹";
 
   const handleExportPDF = async () => {
     if (expenses.length === 0) {
@@ -93,7 +107,7 @@ export default function GroupDetailScreen({ route, navigation }) {
           (m) => `
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: 13px;">
           <span style="color: #4B5563; font-weight: 500;">${m.name}</span>
-          <span style="font-weight: 700; color: #111827;">₹${m.amount.toFixed(2)}</span>
+          <span style="font-weight: 700; color: #111827;">${currencySymbol}${m.amount.toFixed(2)}</span>
         </div>
       `,
         )
@@ -106,7 +120,7 @@ export default function GroupDetailScreen({ route, navigation }) {
           <td>${formatDate(exp.createdAt)}</td>
           <td>${exp.description}</td>
           <td>${exp.paidBy?.name || "Member"}</td>
-          <td style="font-weight: bold; color: #111827;">₹${exp.amount.toFixed(2)}</td>
+          <td style="font-weight: bold; color: #111827;">${currencySymbol}${exp.amount.toFixed(2)}</td>
         </tr>
       `,
         )
@@ -220,7 +234,7 @@ export default function GroupDetailScreen({ route, navigation }) {
                 <p>Expense Report &bull; Generated on ${new Date().toLocaleDateString("en-IN")}</p>
               </div>
               <div class="total-spent">
-                <h2>₹${totalAmount.toFixed(2)}</h2>
+                <h2>${currencySymbol}${totalAmount.toFixed(2)}</h2>
                 <p>Total Spent</p>
               </div>
             </div>
@@ -378,6 +392,23 @@ export default function GroupDetailScreen({ route, navigation }) {
     }
   };
 
+  const onRefresh = async () => {
+    setRefreshing(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      await Promise.all([
+        fetchGroupDetails(),
+        fetchExpenses(),
+        fetchBalances(),
+        fetchPayments()
+      ]);
+    } catch (error) {
+      console.log("Failed to refresh group details:", error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   useFocusEffect(
     useCallback(() => {
       fetchGroupDetails();
@@ -400,42 +431,60 @@ export default function GroupDetailScreen({ route, navigation }) {
     }
   };
 
-  if (loading) {
+  if (loading && !refreshing) {
     return <LoadingSpinner message="Loading group details..." />;
   }
 
+  const currentUserId = currentUser?._id || currentUser?.id;
+  const isAdmin = group && currentUser && (group.createdBy?._id || group.createdBy?.id || group.createdBy) === currentUserId;
+
   return (
     <View style={styles.containerWrapper}>
+      {/* Fixed Group Summary Card at the top */}
+      <AnimatedView
+        entering={FadeInDown.duration(400).delay(100)}
+        style={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 4 }}
+      >
+        <GroupSummaryCard
+          group={group}
+          totalExpenses={expenses.reduce(
+            (sum, expense) => sum + (expense.amount || 0),
+            0,
+          )}
+          isAdmin={isAdmin}
+          onAddMember={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            navigation.navigate("AddMember", {
+              groupId: groupId,
+              currentMembers: group?.members || [],
+              isAdmin: isAdmin,
+            });
+          }}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            navigation.navigate("GroupMembers", {
+              groupId: groupId,
+              group: group,
+              expenses: expenses,
+            });
+          }}
+        />
+      </AnimatedView>
+
+      {/* Scrollable Tab Content & Details with RefreshControl appearing directly below the Summary Card */}
       <ScrollView
         showsVerticalScrollIndicator={false}
         style={styles.container}
-        contentContainerStyle={styles.scrollContent}
-      >
-        <AnimatedView entering={FadeInDown.duration(400).delay(100)}>
-          <GroupSummaryCard
-            group={group}
-            totalExpenses={expenses.reduce(
-              (sum, expense) => sum + (expense.amount || 0),
-              0,
-            )}
-            onAddMember={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              navigation.navigate("AddMember", {
-                groupId: groupId,
-                currentMembers: group?.members || [],
-              });
-            }}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              navigation.navigate("GroupMembers", {
-                groupId: groupId,
-                group: group,
-                expenses: expenses,
-              });
-            }}
+        contentContainerStyle={[styles.scrollContent, { paddingTop: 8 }]}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[COLORS.primary]}
+            tintColor={COLORS.primary}
           />
-        </AnimatedView>
-
+        }
+      >
         <AnimatedView
           entering={FadeInDown.duration(400).delay(200)}
           style={styles.tabContainer}
@@ -524,6 +573,7 @@ export default function GroupDetailScreen({ route, navigation }) {
                     >
                       <ExpenseCard
                         expense={expense}
+                        currency={group?.currency}
                         onPress={() => {
                           Haptics.impactAsync(
                             Haptics.ImpactFeedbackStyle.Light,
@@ -609,7 +659,7 @@ export default function GroupDetailScreen({ route, navigation }) {
                               </Text>
                             </View>
                             <Text style={styles.balanceAmount}>
-                              ₹{debt.amount.toFixed(2)}
+                              {currencySymbol}{debt.amount.toFixed(2)}
                             </Text>
                           </View>
                           {isCurrentUserCreditor ? (
@@ -693,7 +743,7 @@ export default function GroupDetailScreen({ route, navigation }) {
                         </Text>
                       </View>
                       <Text style={styles.historyAmount}>
-                        ₹{payment.amount.toFixed(2)}
+                        {currencySymbol}{payment.amount.toFixed(2)}
                       </Text>
                     </AnimatedView>
                   ))}
@@ -785,7 +835,7 @@ export default function GroupDetailScreen({ route, navigation }) {
 
             <Text style={styles.inputLabel}>Amount Settled</Text>
             <View style={styles.modalInputGroup}>
-              <Text style={styles.modalCurrency}>₹</Text>
+              <Text style={styles.modalCurrency}>{currencySymbol}</Text>
               <TextInput
                 style={styles.modalInput}
                 value={customSettleAmount}

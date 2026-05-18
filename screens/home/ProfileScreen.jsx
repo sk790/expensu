@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   StatusBar,
   Image,
+  RefreshControl,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -26,6 +27,7 @@ import LoadingSpinner from "../../components/LoadingSpinner";
 export default function ProfileScreen({ navigation }) {
   const { user, updateUser, logout } = useAuth();
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const { alertProps, showAlert } = useAlert();
   const insets = useSafeAreaInsets();
 
@@ -49,6 +51,20 @@ export default function ProfileScreen({ navigation }) {
     }
   };
 
+  const onRefresh = async () => {
+    setRefreshing(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      const data = await userService.getUserProfile();
+      const userData = data.user || data;
+      updateUser(userData);
+    } catch (error) {
+      console.error("Failed to refresh user profile:", error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   const handleLogout = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     showAlert({
@@ -69,7 +85,7 @@ export default function ProfileScreen({ navigation }) {
     });
   };
 
-  if (loading) {
+  if (loading && !refreshing) {
     return <LoadingSpinner message="Loading your profile..." />;
   }
 
@@ -85,11 +101,7 @@ export default function ProfileScreen({ navigation }) {
     : "U";
 
   return (
-    <ScrollView
-      style={styles.root}
-      showsVerticalScrollIndicator={false}
-      contentContainerStyle={styles.scrollContent}
-    >
+    <View style={styles.root}>
       <StatusBar
         barStyle="light-content"
         backgroundColor={COLORS.gradientStart}
@@ -97,7 +109,7 @@ export default function ProfileScreen({ navigation }) {
       />
       <CustomAlert {...alertProps} />
 
-      {/* Gradient Hero Header */}
+      {/* Gradient Hero Header (Top Card) */}
       <LinearGradient
         colors={[COLORS.gradientStart, COLORS.gradientEnd]}
         style={[styles.hero, { paddingTop: insets.top + 24 }]}
@@ -148,11 +160,25 @@ export default function ProfileScreen({ navigation }) {
         </AnimatedView>
       </LinearGradient>
 
-      {/* Main Settings Card */}
-      <AnimatedView
-        entering={FadeInDown.duration(450).delay(150)}
-        style={styles.section}
+      {/* Scrollable Settings Content with RefreshControl appearing directly below the Top Card */}
+      <ScrollView
+        style={{ flex: 1 }}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[COLORS.primary]}
+            tintColor={COLORS.primary}
+          />
+        }
       >
+        {/* Main Settings Card */}
+        <AnimatedView
+          entering={FadeInDown.duration(450).delay(150)}
+          style={styles.section}
+        >
         <Text style={styles.sectionTitle}>Account & Settings</Text>
         <View style={styles.infoCard}>
           {/* Preferences Group */}
@@ -381,7 +407,8 @@ export default function ProfileScreen({ navigation }) {
 
       <View style={{ height: 60 }} />
     </ScrollView>
-  );
+  </View>
+);
 }
 
 const styles = StyleSheet.create({

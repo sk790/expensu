@@ -13,6 +13,7 @@ import {
   Dimensions,
   ScrollView,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import Animated, {
@@ -36,6 +37,7 @@ const SUGGESTIONS = [
 ];
 
 export default function AIChatScreen() {
+  const insets = useSafeAreaInsets();
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState([
     {
@@ -109,7 +111,7 @@ export default function AIChatScreen() {
         {
           id: (Date.now() + 1).toString(),
           role: "assistant",
-          content: "❌ Sorry, I encountered an error connecting to the server. Please check your internet connection or make sure the GEMINI_API_KEY is configured in the backend `.env` file.",
+          content: "❌ Sorry, I encountered an error connecting to the server.",
           createdAt: new Date(),
         },
       ]);
@@ -205,15 +207,15 @@ export default function AIChatScreen() {
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
       style={styles.container}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
     >
       {/* Header */}
       <View style={styles.headerContainer}>
         <LinearGradient
           colors={[COLORS.gradientStart, COLORS.gradientEnd]}
-          style={styles.headerGradient}
+          style={[styles.headerGradient, { paddingTop: insets.top + 12 }]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 0 }}
         >
@@ -380,7 +382,6 @@ const styles = StyleSheet.create({
     ...SHADOWS.soft,
   },
   headerGradient: {
-    paddingTop: Platform.OS === "ios" ? 54 : 36,
     paddingBottom: 16,
     paddingHorizontal: 20,
   },

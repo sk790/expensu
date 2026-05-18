@@ -15,10 +15,21 @@ import BalanceCard from "../../components/BalanceCard";
 import { groupService } from "../../services/authService";
 import { COLORS } from "../../utils/constants";
 
+const CURRENCY_SYMBOLS = {
+  INR: "₹",
+  USD: "$",
+  EUR: "€",
+  GBP: "£",
+  JPY: "¥",
+  CAD: "C$",
+  AUD: "A$",
+};
+
 export default function ExpenseHistoryScreen({ route }) {
   const { groupId, groupName } = route.params;
   const [balances, setBalances] = useState([]);
   const [expenses, setExpenses] = useState([]);
+  const [group, setGroup] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const fetchGroupBalances = async () => {
@@ -41,12 +52,26 @@ export default function ExpenseHistoryScreen({ route }) {
     }
   };
 
+  const fetchGroupDetails = async () => {
+    try {
+      const response = await groupService.getGroup(groupId);
+      if (response.data) {
+        setGroup(response.data);
+      }
+    } catch (error) {
+      console.log("Failed to fetch group details in ExpenseHistoryScreen:", error);
+    }
+  };
+
   useFocusEffect(
     useCallback(() => {
       fetchGroupBalances();
       fetchGroupExpenses();
+      fetchGroupDetails();
     }, [groupId]),
   );
+
+  const currencySymbol = CURRENCY_SYMBOLS[group?.currency] || "₹";
 
   const totalExpense = expenses.reduce(
     (sum, expense) => sum + (expense.amount || 0),
@@ -87,7 +112,7 @@ export default function ExpenseHistoryScreen({ route }) {
         </View>
         <Text style={styles.heroGroupName}>{groupName}</Text>
         <Text style={styles.heroLabel}>Total Group Spending</Text>
-        <Text style={styles.heroAmount}>₹{totalExpense.toFixed(2)}</Text>
+        <Text style={styles.heroAmount}>{currencySymbol}{totalExpense.toFixed(2)}</Text>
         <View style={styles.heroStats}>
           <View style={styles.heroStatItem}>
             <Text style={styles.heroStatValue}>{expenses.length}</Text>
@@ -127,7 +152,7 @@ export default function ExpenseHistoryScreen({ route }) {
                 </View>
                 <Text style={styles.payerName}>{payer.name}</Text>
                 <Text style={styles.payerAmount}>
-                  ₹{payer.amount.toFixed(2)}
+                  {currencySymbol}{payer.amount.toFixed(2)}
                 </Text>
               </AnimatedView>
             ))}
@@ -158,6 +183,7 @@ export default function ExpenseHistoryScreen({ route }) {
             <BalanceCard
               key={balance._id || balance.userId}
               balance={balance}
+              currency={group?.currency}
             />
           ))
         )}

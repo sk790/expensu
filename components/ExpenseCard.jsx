@@ -3,6 +3,16 @@ import { StyleSheet, Text, TouchableOpacity, View, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS, SHADOWS } from "../utils/constants";
 
+const CURRENCY_SYMBOLS = {
+  INR: "₹",
+  USD: "$",
+  EUR: "€",
+  GBP: "£",
+  JPY: "¥",
+  CAD: "C$",
+  AUD: "A$",
+};
+
 // Simple color palette for category icons
 const CATEGORY_COLORS = [
   "#6C63FF", "#FF6584", "#43A047", "#FB8C00", "#00ACC1",
@@ -22,9 +32,14 @@ const formatDate = (dateString) => {
   return date.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 };
 
-export default function ExpenseCard({ expense, onPress }) {
-  const accentColor = getCategoryColor(expense.description);
+export default function ExpenseCard({ expense, onPress, currency = "INR" }) {
+  const category = expense.category;
+  const accentColor = category?.color || getCategoryColor(expense.description);
+  const categoryIconName = category?.icon || "receipt-outline";
+  const categoryNameLabel = category?.name;
+  
   const perPerson = expense.amount / (expense.splitBetween?.length || 1);
+  const currencySymbol = CURRENCY_SYMBOLS[currency] || "₹";
 
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.75}>
@@ -35,17 +50,35 @@ export default function ExpenseCard({ expense, onPress }) {
         {/* Icon circle + Description + Amount */}
         <View style={styles.topRow}>
           <View style={[styles.iconCircle, { backgroundColor: accentColor + "18" }]}>
-            <Ionicons name="receipt-outline" size={20} color={accentColor} />
+            <Ionicons name={categoryIconName} size={20} color={accentColor} />
           </View>
           <View style={styles.descBlock}>
             <Text style={styles.description} numberOfLines={1}>{expense.description}</Text>
-            {expense.createdAt && (
-              <Text style={styles.dateText}>{formatDate(expense.createdAt)}</Text>
-            )}
+            <View style={styles.metaInfoRow}>
+              {expense.createdAt && (
+                <Text style={styles.dateText}>{formatDate(expense.createdAt)}</Text>
+              )}
+              {categoryNameLabel && (
+                <>
+                  <View style={[styles.categoryMiniChip, { backgroundColor: accentColor + "10" }]}>
+                    <Text
+                      style={[styles.categoryMiniChipText, { color: accentColor }]}
+                      numberOfLines={1}
+                      ellipsizeMode="tail"
+                    >
+                      {categoryNameLabel}
+                    </Text>
+                  </View>
+                </>
+              )}
+            </View>
           </View>
           <View style={styles.amountBlock}>
-            <Text style={styles.amount}>₹{Number(expense.amount).toFixed(2)}</Text>
-            <Text style={styles.perPerson}>₹{perPerson.toFixed(2)}/person</Text>
+            <Text style={styles.amount}>{currencySymbol}{Number(expense.amount).toFixed(2)}</Text>
+            <View style={styles.perPersonRow}>
+              <Text style={styles.perPerson}>{currencySymbol}{perPerson.toFixed(2)} /</Text>
+              <Ionicons name="person-outline" size={10} color="#9CA3AF" />
+            </View>
           </View>
         </View>
 
@@ -190,5 +223,31 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: COLORS.primary,
     fontWeight: "600",
+  },
+  metaInfoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  bulletSeparator: {
+    fontSize: 10,
+    color: "#9CA3AF",
+  },
+  categoryMiniChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+    maxWidth: 150, // Prevents overly long custom category names from squeezing the screen
+  },
+  categoryMiniChipText: {
+    fontSize: 9,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+  },
+  perPersonRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
   },
 });

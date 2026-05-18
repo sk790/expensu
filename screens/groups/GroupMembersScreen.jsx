@@ -30,8 +30,19 @@ import { COLORS } from "../../utils/constants";
 import { storage } from "../../utils/storage";
 import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
 
+const CURRENCY_SYMBOLS = {
+  INR: "₹",
+  USD: "$",
+  EUR: "€",
+  GBP: "£",
+  JPY: "¥",
+  CAD: "C$",
+  AUD: "A$",
+};
+
 export default function GroupMembersScreen({ route, navigation }) {
   const { groupId, group, expenses } = route.params;
+  const currencySymbol = CURRENCY_SYMBOLS[group?.currency] || "₹";
   const [selectedMember, setSelectedMember] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
@@ -90,6 +101,7 @@ export default function GroupMembersScreen({ route, navigation }) {
       groupId,
       expenses,
       member: selectedMember,
+      currency: group?.currency,
     });
   };
 
@@ -237,7 +249,7 @@ export default function GroupMembersScreen({ route, navigation }) {
                 color={COLORS.primary}
               />
             </View>
-            <Text style={styles.statValue}>₹{totalGroupSpend.toFixed(0)}</Text>
+            <Text style={styles.statValue}>{currencySymbol}{totalGroupSpend.toFixed(0)}</Text>
             <Text style={styles.statLabel}>Total Spent</Text>
           </View>
         </AnimatedView>
@@ -319,7 +331,7 @@ export default function GroupMembersScreen({ route, navigation }) {
                             member.totalPaid === 0 && styles.paidAmountZero,
                           ]}
                         >
-                          ₹{member.totalPaid.toFixed(2)}
+                          {currencySymbol}{member.totalPaid.toFixed(2)}
                         </Text>
                       </View>
                       <Ionicons
@@ -340,25 +352,28 @@ export default function GroupMembersScreen({ route, navigation }) {
       </ScrollView>
 
       {/* FAB */}
-      <AnimatedView
-        entering={ZoomIn.duration(400).delay(400)}
-        style={[styles.fabContainer, { bottom: 16 }]}
-      >
-        <TouchableOpacity
-          style={styles.fab}
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-            navigation.navigate("AddMember", {
-              groupId,
-              currentMembers: group?.members || [],
-            });
-          }}
-          activeOpacity={0.85}
+      {isAdmin && (
+        <AnimatedView
+          entering={ZoomIn.duration(400).delay(400)}
+          style={[styles.fabContainer, { bottom: 16 }]}
         >
-          <Ionicons name="person-add-outline" size={22} color={COLORS.white} />
-          <Text style={styles.fabLabel}>Add Member</Text>
-        </TouchableOpacity>
-      </AnimatedView>
+          <TouchableOpacity
+            style={styles.fab}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              navigation.navigate("AddMember", {
+                groupId,
+                currentMembers: group?.members || [],
+                isAdmin: isAdmin,
+              });
+            }}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="person-add-outline" size={22} color={COLORS.white} />
+            <Text style={styles.fabLabel}>Add Member</Text>
+          </TouchableOpacity>
+        </AnimatedView>
+      )}
 
       {/* Gesture Controlled Modal */}
       <Modal
@@ -423,7 +438,7 @@ export default function GroupMembersScreen({ route, navigation }) {
                     <View style={styles.modalStatsCard}>
                       <View style={styles.modalStatItem}>
                         <Text style={styles.modalStatLabel}>Total Contribution</Text>
-                        <Text style={styles.modalStatValue}>₹{selectedMember.totalPaid?.toFixed(2)}</Text>
+                        <Text style={styles.modalStatValue}>{currencySymbol}{selectedMember.totalPaid?.toFixed(2)}</Text>
                       </View>
                       <View style={styles.modalStatDivider} />
                       <View style={styles.modalStatItem}>

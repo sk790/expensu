@@ -178,6 +178,7 @@ export default function MainTabNavigator() {
         tabBarActiveTintColor: COLORS.primary,
         tabBarInactiveTintColor: "#9CA3AF",
         headerShown: false,
+        tabBarHideOnKeyboard: true,
         tabBarStyle: {
           backgroundColor: "#FFFFFF",
           borderTopWidth: 0,

@@ -24,7 +24,7 @@ import { useAlert } from "../../hooks/useAlert";
 import { storage } from "../../utils/storage";
 
 export default function AddMemberScreen({ route, navigation }) {
-  const { groupId, currentMembers } = route.params;
+  const { groupId, currentMembers, isAdmin } = route.params;
   const insets = useSafeAreaInsets();
 
   const [email, setEmail] = useState("");
@@ -115,6 +115,34 @@ export default function AddMemberScreen({ route, navigation }) {
       setLoading(false);
     }
   };
+
+  if (isAdmin === false) {
+    return (
+      <View style={[styles.container, { justifyContent: "center", alignItems: "center", padding: 24 }]}>
+        <StatusBar barStyle="dark-content" />
+        <View style={[styles.iconContainer, { backgroundColor: COLORS.primary + "12" }]}>
+          <Ionicons name="lock-closed-outline" size={32} color={COLORS.primary} />
+        </View>
+        <Text style={[styles.title, { marginTop: 12, textAlign: "center" }]}>Admin Access Required</Text>
+        <Text style={[styles.subtitle, { textAlign: "center", marginTop: 12, paddingHorizontal: 20 }]}>
+          Only the group admin (creator) can invite or add new members to this group.
+        </Text>
+        <TouchableOpacity
+          style={[styles.inviteButton, { marginTop: 32, width: 200 }]}
+          onPress={() => navigation.goBack()}
+        >
+          <LinearGradient
+            colors={[COLORS.primary, "#6366f1"]}
+            style={styles.inviteGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+          >
+            <Text style={styles.inviteText}>Go Back</Text>
+          </LinearGradient>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>

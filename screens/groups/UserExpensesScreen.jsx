@@ -7,12 +7,23 @@ import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
 import AnimatedView from "../../components/AnimatedView";
 import * as Haptics from "expo-haptics";
 
+const CURRENCY_SYMBOLS = {
+  INR: "₹",
+  USD: "$",
+  EUR: "€",
+  GBP: "£",
+  JPY: "¥",
+  CAD: "C$",
+  AUD: "A$",
+};
+
 export default function UserExpensesScreen({ route, navigation }) {
-  const { member, expenses, groupId } = route.params;
+  const { member, expenses, groupId, currency } = route.params;
 
   const userExpenses = expenses?.filter((exp) => exp.paidBy._id === member._id) || [];
   const totalPaid = userExpenses.reduce((sum, exp) => sum + (exp.amount || 0), 0);
   const initials = member.name.substring(0, 2).toUpperCase();
+  const currencySymbol = CURRENCY_SYMBOLS[currency] || "₹";
 
   return (
     <View style={styles.container}>
@@ -30,7 +41,7 @@ export default function UserExpensesScreen({ route, navigation }) {
         {/* Stats */}
         <AnimatedView entering={FadeInDown.duration(400).delay(200)} style={styles.statsCard}>
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>₹{totalPaid.toFixed(2)}</Text>
+            <Text style={styles.statValue}>{currencySymbol}{totalPaid.toFixed(2)}</Text>
             <Text style={styles.statLabel}>Total Paid</Text>
           </View>
           <View style={styles.statDivider} />
@@ -65,7 +76,7 @@ export default function UserExpensesScreen({ route, navigation }) {
                       navigation.navigate("ExpenseDetail", { expense, groupId });
                     }}
                   >
-                    <ExpenseCard expense={expense} />
+                    <ExpenseCard expense={expense} currency={currency} />
                   </TouchableOpacity>
                 </AnimatedView>
               ))}
