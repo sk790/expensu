@@ -187,3 +187,11 @@ export const groupInvitationService = {
     return response.data;
   },
 };
+
+export const aiService = {
+  async chat(message, history = []) {
+    const response = await api.post("ai/chat", { message, history });
+    return response.data;
+  },
+};
+

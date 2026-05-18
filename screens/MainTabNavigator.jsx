@@ -17,6 +17,7 @@ import GroupMembersScreen from "./groups/GroupMembersScreen";
 import GroupsListScreen from "./groups/GroupsListScreen";
 import UserExpensesScreen from "./groups/UserExpensesScreen";
 import HistoryScreen from "./groups/HistoryScreen";
+import AIChatScreen from "./groups/AIChatScreen";
 import ProfileScreen from "./home/ProfileScreen";
 import TermsOfServiceScreen from "./home/TermsOfServiceScreen";
 import HelpCenterScreen from "./home/HelpCenterScreen";
@@ -163,6 +164,7 @@ export default function MainTabNavigator() {
           const icons = {
             Groups: focused ? "people" : "people-outline",
             History: focused ? "receipt" : "receipt-outline",
+            AI: focused ? "sparkles" : "sparkles-outline",
             Profile: focused ? "person" : "person-outline",
           };
           return (
@@ -197,6 +199,7 @@ export default function MainTabNavigator() {
     >
       <Tab.Screen name="Groups" component={GroupsStack} />
       <Tab.Screen name="History" component={HistoryScreen} />
+      <Tab.Screen name="AI" component={AIChatScreen} />
       <Tab.Screen name="Profile" component={ProfileStack} />
     </Tab.Navigator>
   );
