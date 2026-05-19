@@ -58,26 +58,28 @@ export const groupService = {
     return response.data;
   },
 
-  async addExpense(groupId, amount, splitBetween, description, paidBy, category) {
+  async addExpense(groupId, amount, splitBetween, description, paidBy, category, attachment) {
     const response = await api.post(`groups/${groupId}/expenses`, {
       amount,
       splitBetween,
       description,
       paidBy,
       category,
+      attachment,
     });
     console.log(response);
     
     return response.data;
   },
 
-  async editExpense(groupId, expenseId, amount, splitBetween, description, paidBy, category) {
+  async editExpense(groupId, expenseId, amount, splitBetween, description, paidBy, category, attachment) {
     const response = await api.put(`groups/${groupId}/expenses/${expenseId}`, {
       amount,
       splitBetween,
       description,
       paidBy,
       category,
+      attachment,
     });
     return response.data;
   },
