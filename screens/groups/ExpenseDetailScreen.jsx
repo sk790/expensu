@@ -10,12 +10,7 @@ import {
     Text,
     TouchableOpacity,
     View,
-    Image,
-    Modal,
-    Linking,
 } from "react-native";
-import * as Sharing from "expo-sharing";
-import * as FileSystem from "expo-file-system/legacy";
 import Animated, {
     FadeInDown,
     FadeInUp,
@@ -42,7 +37,6 @@ export default function ExpenseDetailScreen({ route, navigation }) {
   const { expense: initialExpense, groupId, fromHistory } = route.params;
   const [expense, setExpense] = React.useState(initialExpense);
   const [group, setGroup] = React.useState(null);
-  const [receiptModalVisible, setReceiptModalVisible] = React.useState(false);
   const category = expense?.category;
   const accentColor = category?.color || COLORS.primary;
   const categoryIcon = category?.icon || "receipt-outline";
@@ -143,100 +137,8 @@ export default function ExpenseDetailScreen({ route, navigation }) {
         splitBetween: expense.splitBetween.map((m) => m._id),
         paidBy: expense.paidBy._id,
         category: expense.category?._id || expense.category,
-        attachment: expense.attachment,
       },
     });
-  };
-
-  const isPdfAttachment = (uri) => {
-    if (!uri) return false;
-    return uri.startsWith("data:application/pdf") || uri.includes(".pdf");
-  };
-
-  const isVideoAttachment = (uri) => {
-    if (!uri) return false;
-    return (
-      uri.startsWith("data:video/") ||
-      uri.includes(".mp4") ||
-      uri.includes(".mov") ||
-      uri.includes(".3gp") ||
-      uri.includes(".avi")
-    );
-  };
-
-  const viewPdf = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    try {
-      if (expense.attachment.startsWith("data:application/pdf;base64,")) {
-        const base64Data = expense.attachment.replace("data:application/pdf;base64,", "");
-        const tempUri = `${FileSystem.cacheDirectory}receipt_${expense._id}.pdf`;
-        
-        await FileSystem.writeAsStringAsync(tempUri, base64Data, {
-          encoding: "base64",
-        });
-        
-        if (await Sharing.isAvailableAsync()) {
-          await Sharing.shareAsync(tempUri, { mimeType: 'application/pdf', dialogTitle: 'View Receipt PDF' });
-        } else {
-          showAlert({
-            type: "error",
-            title: "Viewer Unavailable",
-            message: "Viewing PDF is not supported on this device."
-          });
-        }
-      } else if (expense.attachment.includes("http")) {
-        Linking.openURL(expense.attachment);
-      }
-    } catch (error) {
-      console.log("Failed to view PDF:", error);
-      showAlert({
-        type: "error",
-        title: "Error",
-        message: "Failed to open PDF document."
-      });
-    }
-  };
-
-  const viewVideo = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    try {
-      if (expense.attachment.startsWith("data:video/")) {
-        const matches = expense.attachment.match(/^data:([^;]+);base64,(.+)$/);
-        if (matches && matches.length === 3) {
-          const mimeType = matches[1];
-          const base64Data = matches[2];
-          
-          let ext = ".mp4";
-          if (mimeType.includes("quicktime")) ext = ".mov";
-          else if (mimeType.includes("3gpp")) ext = ".3gp";
-          
-          const tempUri = `${FileSystem.cacheDirectory}receipt_${expense._id}${ext}`;
-          
-          await FileSystem.writeAsStringAsync(tempUri, base64Data, {
-            encoding: "base64",
-          });
-          
-          if (await Sharing.isAvailableAsync()) {
-            await Sharing.shareAsync(tempUri, { mimeType, dialogTitle: 'Play Receipt Video' });
-          } else {
-            showAlert({
-              type: "error",
-              title: "Viewer Unavailable",
-              message: "Playing video is not supported on this device."
-            });
-          }
-        }
-      } else if (expense.attachment.includes("http")) {
-        Linking.openURL(expense.attachment);
-      }
-    } catch (error) {
-      console.log("Failed to view video:", error);
-      showAlert({
-        type: "error",
-        title: "Error",
-        message: "Failed to open video."
-      });
-    }
   };
 
   if (loading) {
@@ -346,65 +248,6 @@ export default function ExpenseDetailScreen({ route, navigation }) {
           </View>
         </AnimatedView>
 
-        {/* Receipt / Attachment Section */}
-        {expense.attachment && (
-          <AnimatedView
-            entering={FadeInDown.duration(400).delay(250)}
-            style={styles.section}
-          >
-            <View style={styles.sectionHeader}>
-              <Ionicons name="document-attach-outline" size={20} color={accentColor} />
-              <Text style={styles.sectionTitle}>Receipt / Attachment</Text>
-            </View>
-            {isPdfAttachment(expense.attachment) ? (
-              <TouchableOpacity
-                style={styles.pdfDetailContainer}
-                onPress={viewPdf}
-                activeOpacity={0.8}
-              >
-                <View style={[styles.pdfIconWrapperSmall, { backgroundColor: "#EF4444" + "12" }]}>
-                  <Ionicons name="document-text" size={32} color="#EF4444" />
-                </View>
-                <View style={styles.pdfInfoTextWrapper}>
-                  <Text style={styles.pdfDetailName}>Receipt Document.pdf</Text>
-                  <Text style={styles.pdfDetailAction}>Tap to view/share PDF receipt</Text>
-                </View>
-                <Ionicons name="share-outline" size={20} color={COLORS.gray} />
-              </TouchableOpacity>
-            ) : isVideoAttachment(expense.attachment) ? (
-              <TouchableOpacity
-                style={styles.pdfDetailContainer}
-                onPress={viewVideo}
-                activeOpacity={0.8}
-              >
-                <View style={[styles.pdfIconWrapperSmall, { backgroundColor: COLORS.primary + "12" }]}>
-                  <Ionicons name="play-circle" size={32} color={COLORS.primary} />
-                </View>
-                <View style={styles.pdfInfoTextWrapper}>
-                  <Text style={styles.pdfDetailName}>Receipt Video.mp4</Text>
-                  <Text style={styles.pdfDetailAction}>Tap to play receipt video</Text>
-                </View>
-                <Ionicons name="share-outline" size={20} color={COLORS.gray} />
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                style={styles.receiptContainer}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  setReceiptModalVisible(true);
-                }}
-                activeOpacity={0.9}
-              >
-                <Image source={{ uri: expense.attachment }} style={styles.receiptImage} />
-                <View style={styles.receiptOverlay}>
-                  <Ionicons name="scan-outline" size={22} color={COLORS.white} />
-                  <Text style={styles.receiptOverlayText}>Tap to View Receipt</Text>
-                </View>
-              </TouchableOpacity>
-            )}
-          </AnimatedView>
-        )}
-
         {/* Split Among */}
         <AnimatedView
           entering={FadeInDown.duration(400).delay(300)}
@@ -468,29 +311,6 @@ export default function ExpenseDetailScreen({ route, navigation }) {
         </AnimatedView>
         <View style={{ height: 40 }} />
       </ScrollView>
-
-      {/* Full Screen Receipt Modal */}
-      {expense.attachment && (
-        <Modal
-          visible={receiptModalVisible}
-          transparent={true}
-          animationType="fade"
-          onRequestClose={() => setReceiptModalVisible(false)}
-        >
-          <View style={styles.fullscreenOverlay}>
-            <TouchableOpacity
-              style={styles.fullscreenCloseBtn}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setReceiptModalVisible(false);
-              }}
-            >
-              <Ionicons name="close-circle" size={38} color={COLORS.white} />
-            </TouchableOpacity>
-            <Image source={{ uri: expense.attachment }} style={styles.fullscreenImage} />
-          </View>
-        </Modal>
-      )}
     </View>
   );
 }
@@ -701,83 +521,4 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   paidBadgeText: { color: COLORS.success, fontSize: 11, fontWeight: "bold" },
-  receiptContainer: {
-    backgroundColor: COLORS.white,
-    borderRadius: 16,
-    overflow: "hidden",
-    height: 180,
-    position: "relative",
-    borderWidth: 1,
-    borderColor: "#F0F0F0",
-  },
-  receiptImage: {
-    width: "100%",
-    height: "100%",
-    resizeMode: "cover",
-  },
-  receiptOverlay: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: "rgba(0, 0, 0, 0.4)",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    paddingVertical: 10,
-  },
-  receiptOverlayText: {
-    color: COLORS.white,
-    fontSize: 13,
-    fontWeight: "bold",
-  },
-  fullscreenOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.95)",
-    justifyContent: "center",
-    alignItems: "center",
-    position: "relative",
-  },
-  fullscreenCloseBtn: {
-    position: "absolute",
-    top: Platform.OS === "ios" ? 60 : 30,
-    right: 20,
-    zIndex: 10,
-  },
-  fullscreenImage: {
-    width: "100%",
-    height: "80%",
-    resizeMode: "contain",
-  },
-  pdfDetailContainer: {
-    backgroundColor: COLORS.white,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    padding: 16,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  pdfIconWrapperSmall: {
-    width: 48,
-    height: 48,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 14,
-  },
-  pdfInfoTextWrapper: {
-    flex: 1,
-  },
-  pdfDetailName: {
-    fontSize: 15,
-    fontWeight: "bold",
-    color: COLORS.dark,
-    marginBottom: 4,
-  },
-  pdfDetailAction: {
-    fontSize: 12,
-    color: COLORS.gray,
-  },
 });

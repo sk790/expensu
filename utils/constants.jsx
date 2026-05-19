@@ -1,5 +1,5 @@
 // Change this to your backend URL
-export const API_BASE_URL = "http://192.168.1.2:3000/api"; // For Android emulator
+export const API_BASE_URL = "http://10.27.123.190:3000/api"; // For Android emulator
 // export const API_BASE_URL = 'http://localhost:3000/api'; // For iOS simulator
 // export const API_BASE_URL = "https://split-backend-strr.onrender.com/api"; // For physical device
 
