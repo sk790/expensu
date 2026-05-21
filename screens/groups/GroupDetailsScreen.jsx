@@ -360,8 +360,6 @@ export default function GroupDetailScreen({ route, navigation }) {
         message: "Failed to load group details",
       });
       navigation.goBack();
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -392,16 +390,29 @@ export default function GroupDetailScreen({ route, navigation }) {
     }
   };
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  const loadData = async (showLoadingSpinner = true) => {
+    if (showLoadingSpinner) {
+      setLoading(true);
+    }
     try {
       await Promise.all([
         fetchGroupDetails(),
         fetchExpenses(),
         fetchBalances(),
-        fetchPayments()
+        fetchPayments(),
       ]);
+    } catch (error) {
+      console.log("Error loading group data:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      await loadData(false);
     } catch (error) {
       console.log("Failed to refresh group details:", error);
     } finally {
@@ -411,11 +422,9 @@ export default function GroupDetailScreen({ route, navigation }) {
 
   useFocusEffect(
     useCallback(() => {
-      fetchGroupDetails();
-      fetchExpenses();
-      fetchBalances();
-      fetchPayments();
-    }, [groupId]),
+      const shouldShowSpinner = !group;
+      loadData(shouldShowSpinner);
+    }, [groupId, group]),
   );
 
   useLayoutEffect(() => {

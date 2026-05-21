@@ -1,1 +1,4 @@
 user can select date jis date me kharcha hua tha bydefault wo date rahegi jis date me expense add hua.
+join group via scanner or code not only by sending invite.
+
+payment done ka option.

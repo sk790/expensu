@@ -3,18 +3,20 @@ import { useFocusEffect } from "@react-navigation/native";
 import * as Haptics from "expo-haptics";
 import React from "react";
 import {
-    ActivityIndicator,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+  Image,
+  Linking,
 } from "react-native";
 import Animated, {
-    FadeInDown,
-    FadeInUp,
-    ZoomIn,
+  FadeInDown,
+  FadeInUp,
+  ZoomIn,
 } from "react-native-reanimated";
 import AnimatedView from "../../components/AnimatedView";
 import CustomAlert from "../../components/CustomAlert";
@@ -62,7 +64,7 @@ export default function ExpenseDetailScreen({ route, navigation }) {
             groupService.getGroupExpenses(groupId),
             groupService.getGroup(groupId),
           ]);
-          
+
           const updatedExpense = expenseResponse.data.find(
             (exp) => exp._id === initialExpense._id,
           );
@@ -78,7 +80,18 @@ export default function ExpenseDetailScreen({ route, navigation }) {
     }, [groupId, initialExpense._id]),
   );
 
-  const splitAmount = expense.amount / expense.splitBetween.length;
+  const getMemberSplitAmount = React.useCallback((memberId) => {
+    if (expense.splits && expense.splits.length > 0) {
+      const split = expense.splits.find(s => {
+        const sId = s.user?._id || s.user;
+        return sId && sId.toString() === memberId.toString();
+      });
+      if (split) return split.amount;
+    }
+    return expense.amount / (expense.splitBetween?.length || 1);
+  }, [expense]);
+
+  const splitAmount = getMemberSplitAmount(currentUserId);
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString("en-IN", {
@@ -135,8 +148,11 @@ export default function ExpenseDetailScreen({ route, navigation }) {
         description: expense.description,
         amount: expense.amount,
         splitBetween: expense.splitBetween.map((m) => m._id),
+        splits: expense.splits,
         paidBy: expense.paidBy._id,
         category: expense.category?._id || expense.category,
+        attachment: expense.attachment,
+        attachmentPublicId: expense.attachmentPublicId,
       },
     });
   };
@@ -248,6 +264,47 @@ export default function ExpenseDetailScreen({ route, navigation }) {
           </View>
         </AnimatedView>
 
+        {/* Attachment (if exists) */}
+        {expense.attachment ? (
+          <AnimatedView
+            entering={FadeInDown.duration(400).delay(250)}
+            style={styles.section}
+          >
+            <View style={styles.sectionHeader}>
+              <Ionicons name="document-attach-outline" size={20} color={accentColor} />
+              <Text style={styles.sectionTitle}>Attachment</Text>
+            </View>
+            {(() => {
+              const isPdf = expense.attachment.toLowerCase().endsWith(".pdf") || expense.attachment.toLowerCase().includes(".pdf");
+              return (
+                <TouchableOpacity
+                  style={styles.attachmentCard}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    Linking.openURL(expense.attachment);
+                  }}
+                  activeOpacity={0.8}
+                >
+                  {isPdf ? (
+                    <View style={[styles.attachmentPreview, { backgroundColor: '#FEE2E2', alignItems: 'center', justifyContent: 'center', borderRadius: 10 }]}>
+                      <Ionicons name="document-text" size={32} color={COLORS.danger} />
+                    </View>
+                  ) : (
+                    <Image source={{ uri: expense.attachment }} style={styles.attachmentPreview} />
+                  )}
+                  <View style={styles.attachmentInfo}>
+                    <Text style={styles.attachmentTitle} numberOfLines={1}>
+                      {isPdf ? "Receipt PDF" : "Receipt Image"}
+                    </Text>
+                    <Text style={styles.attachmentSubtitle}>Tap to view attachment</Text>
+                  </View>
+                  <Ionicons name="eye-outline" size={20} color={accentColor} style={styles.viewIcon} />
+                </TouchableOpacity>
+              );
+            })()}
+          </AnimatedView>
+        ) : null}
+
         {/* Split Among */}
         <AnimatedView
           entering={FadeInDown.duration(400).delay(300)}
@@ -270,7 +327,7 @@ export default function ExpenseDetailScreen({ route, navigation }) {
                   style={[
                     styles.memberSplitCard,
                     index !== expense.splitBetween.length - 1 &&
-                      styles.memberBorder,
+                    styles.memberBorder,
                   ]}
                 >
                   <View style={styles.memberSplitLeft}>
@@ -296,8 +353,13 @@ export default function ExpenseDetailScreen({ route, navigation }) {
                   </View>
                   <View style={styles.memberSplitRight}>
                     <Text style={styles.memberSplitAmount}>
-                      {currencySymbol}{splitAmount.toFixed(2)}
+                      {currencySymbol}{getMemberSplitAmount(member._id).toFixed(2)}
                     </Text>
+                    {expense.splits && expense.splits.length > 0 && (
+                      <Text style={{ fontSize: 10, color: COLORS.gray, marginTop: 2 }}>
+                        {expense.amount > 0 ? ((getMemberSplitAmount(member._id) / expense.amount) * 100).toFixed(0) : 0}%
+                      </Text>
+                    )}
                     {isPayer && (
                       <View style={[styles.paidBadge, { backgroundColor: accentColor + "15" }]}>
                         <Text style={[styles.paidBadgeText, { color: accentColor }]}>Paid</Text>
@@ -521,4 +583,35 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   paidBadgeText: { color: COLORS.success, fontSize: 11, fontWeight: "bold" },
+  attachmentCard: {
+    flexDirection: "row",
+    backgroundColor: COLORS.white,
+    borderRadius: 16,
+    padding: 12,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#F0F0F0",
+  },
+  attachmentPreview: {
+    width: 60,
+    height: 60,
+    borderRadius: 10,
+    marginRight: 14,
+  },
+  attachmentInfo: {
+    flex: 1,
+  },
+  attachmentTitle: {
+    fontSize: 15,
+    fontWeight: "bold",
+    color: COLORS.dark,
+    marginBottom: 4,
+  },
+  attachmentSubtitle: {
+    fontSize: 12,
+    color: COLORS.gray,
+  },
+  viewIcon: {
+    padding: 8,
+  },
 });

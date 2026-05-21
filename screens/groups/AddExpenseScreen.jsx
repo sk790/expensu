@@ -12,7 +12,7 @@ import {
   Platform, Image,
   Modal,
 } from "react-native";
-import { groupService, categoryService } from "../../services/authService";
+import { groupService, categoryService, uploadService } from "../../services/authService";
 import { COLORS } from "../../utils/constants";
 import Animated, { FadeInDown, FadeInUp, Layout, ZoomIn } from "react-native-reanimated";
 import AnimatedView from "../../components/AnimatedView";
@@ -21,6 +21,7 @@ import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import CustomAlert from "../../components/CustomAlert";
 import { useAlert } from "../../hooks/useAlert";
 import { useAuth } from "../../context/AuthContext";
+import * as DocumentPicker from "expo-document-picker";
 
 const CURRENCY_SYMBOLS = {
   INR: "₹",
@@ -59,8 +60,19 @@ export default function AddExpenseScreen({ route, navigation }) {
   );
   const [splitType, setSplitType] = useState("equal");
   const [customAmounts, setCustomAmounts] = useState({});
+  const [customPercentages, setCustomPercentages] = useState({});
   const [loading, setLoading] = useState(false);
   const [focusedInput, setFocusedInput] = useState(null);
+  const [attachment, setAttachment] = useState(null);
+  const [attachmentPublicId, setAttachmentPublicId] = useState("");
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
+
+  const handleCustomPercentageChange = (memberId, value) => {
+    setCustomPercentages((prev) => ({
+      ...prev,
+      [memberId]: value,
+    }));
+  };
 
   const [categories, setCategories] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState(null);
@@ -89,29 +101,75 @@ export default function AddExpenseScreen({ route, navigation }) {
   useEffect(() => {
     if (isEditing && expenseData) {
       setAmount(expenseData.amount.toString());
-      setDescription(expenseData.description); if (expenseData.paidBy) { setPaidBy(expenseData.paidBy._id || expenseData.paidBy); }
+      setDescription(expenseData.description);
+      if (expenseData.paidBy) {
+        setPaidBy(expenseData.paidBy._id || expenseData.paidBy);
+      }
+      if (expenseData.attachment) {
+        setAttachment(expenseData.attachment);
+      }
+      if (expenseData.attachmentPublicId) {
+        setAttachmentPublicId(expenseData.attachmentPublicId);
+      }
 
-      const isCustom = expenseData.splitBetween.some(
-        (item) => typeof item === "object" && item.amount,
-      );
+      const hasSplits = expenseData.splits && expenseData.splits.length > 0;
 
-      if (isCustom) {
-        setSplitType("custom");
-        const memberSelection = {};
-        const amounts = {};
-        expenseData.splitBetween.forEach((item) => {
-          memberSelection[item.paidBy || item.userId || item._id] = true;
-          amounts[item.paidBy || item.userId || item._id] =
-            item.amount.toString();
-        });
-        setSelectedMembers(memberSelection);
-        setCustomAmounts(amounts);
+      if (hasSplits) {
+        const totalAmount = expenseData.amount;
+        const firstAmt = expenseData.splits[0].amount;
+        const isAllEqual = expenseData.splits.every(s => Math.abs(s.amount - firstAmt) < 0.05);
+
+        if (!isAllEqual || expenseData.splits.length !== uniqueMembers.length) {
+          setSplitType("custom");
+          const memberSelection = {};
+          const amounts = {};
+          const percentages = {};
+
+          expenseData.splits.forEach((item) => {
+            const userId = item.user?._id || item.user || '';
+            if (userId) {
+              memberSelection[userId] = true;
+              amounts[userId] = item.amount.toString();
+              const pct = ((item.amount / totalAmount) * 100).toFixed(1);
+              percentages[userId] = pct.endsWith(".0") ? Math.round(pct).toString() : pct;
+            }
+          });
+
+          setSelectedMembers(memberSelection);
+          setCustomAmounts(amounts);
+          setCustomPercentages(percentages);
+        } else {
+          setSplitType("equal");
+          const memberSelection = uniqueMembers.reduce((acc, member) => {
+            const inSplits = expenseData.splits.some(s => (s.user?._id || s.user) === member._id);
+            acc[member._id] = inSplits;
+            return acc;
+          }, {});
+          setSelectedMembers(memberSelection);
+        }
       } else {
-        const memberSelection = uniqueMembers.reduce((acc, member) => {
-          acc[member._id] = expenseData.splitBetween.includes(member._id);
-          return acc;
-        }, {});
-        setSelectedMembers(memberSelection);
+        const isCustom = expenseData.splitBetween.some(
+          (item) => typeof item === "object" && item.amount,
+        );
+
+        if (isCustom) {
+          setSplitType("custom");
+          const memberSelection = {};
+          const amounts = {};
+          expenseData.splitBetween.forEach((item) => {
+            memberSelection[item.paidBy || item.userId || item._id] = true;
+            amounts[item.paidBy || item.userId || item._id] =
+              item.amount.toString();
+          });
+          setSelectedMembers(memberSelection);
+          setCustomAmounts(amounts);
+        } else {
+          const memberSelection = uniqueMembers.reduce((acc, member) => {
+            acc[member._id] = expenseData.splitBetween.includes(member._id);
+            return acc;
+          }, {});
+          setSelectedMembers(memberSelection);
+        }
       }
     } else {
       const currentUserId = currentUser?.id || currentUser?._id;
@@ -138,7 +196,7 @@ export default function AddExpenseScreen({ route, navigation }) {
           cats.unshift(othersCat);
         }
         setCategories(cats);
-        
+
         if (isEditing && expenseData && expenseData.category) {
           setSelectedCategory(expenseData.category._id || expenseData.category);
         } else if (cats.length > 0) {
@@ -200,6 +258,45 @@ export default function AddExpenseScreen({ route, navigation }) {
     }
   };
 
+  const handlePickAttachment = async () => {
+    try {
+      const pickerResult = await DocumentPicker.getDocumentAsync({
+        type: ["image/*", "application/pdf"],
+        multiple: false,
+      });
+
+      if (pickerResult.canceled) return;
+
+      const localUri = pickerResult.assets[0].uri;
+      setUploadingAttachment(true);
+
+      const res = await uploadService.uploadImage(localUri, 'receipts');
+
+      if (res.success) {
+        setAttachment(res.url);
+        setAttachmentPublicId(res.public_id);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } else {
+        throw new Error(res.message || "Failed to upload attachment.");
+      }
+    } catch (error) {
+      console.log("Failed to pick or upload attachment:", error);
+      showAlert({
+        type: "error",
+        title: "Upload Failed",
+        message: error.message || "Failed to upload receipt. Please try again."
+      });
+    } finally {
+      setUploadingAttachment(false);
+    }
+  };
+
+  const handleRemoveAttachment = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setAttachment(null);
+    setAttachmentPublicId("");
+  };
+
   const handleSubmit = async () => {
     if (!amount || !description.trim()) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -235,6 +332,27 @@ export default function AddExpenseScreen({ route, navigation }) {
         userId: id,
         amount: parseFloat(customAmounts[id]) || 0,
       }));
+    } else if (splitType === "percentage") {
+      const totalPercent = selectedIds.reduce(
+        (sum, id) => sum + (parseFloat(customPercentages[id]) || 0),
+        0,
+      );
+      const targetAmount = parseFloat(amount);
+
+      if (Math.abs(totalPercent - 100) > 0.01) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        showAlert({ type: "warning", title: "Percentage Mismatch", message: `Total percentage (${totalPercent.toFixed(1)}%) must equal exactly 100%.` });
+        return;
+      }
+
+      finalSplitData = selectedIds.map((id) => {
+        const pct = parseFloat(customPercentages[id]) || 0;
+        const calculatedAmt = parseFloat(((pct / 100) * targetAmount).toFixed(2));
+        return {
+          userId: id,
+          amount: calculatedAmt,
+        };
+      });
     }
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -243,10 +361,12 @@ export default function AddExpenseScreen({ route, navigation }) {
       if (isEditing && expenseData) {
         await groupService.editExpense(
           groupId,
-          expenseData.id,
+          expenseData.id || expenseData._id,
           parseFloat(amount),
           finalSplitData,
-          description.trim(), paidBy, selectedCategory
+          description.trim(), paidBy, selectedCategory,
+          attachment,
+          attachmentPublicId
         );
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         showAlert({
@@ -259,7 +379,9 @@ export default function AddExpenseScreen({ route, navigation }) {
           groupId,
           parseFloat(amount),
           finalSplitData,
-          description.trim(), paidBy, selectedCategory
+          description.trim(), paidBy, selectedCategory,
+          attachment,
+          attachmentPublicId
         );
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         showAlert({
@@ -288,8 +410,19 @@ export default function AddExpenseScreen({ route, navigation }) {
 
   const currentTotal = Object.keys(selectedMembers)
     .filter((id) => selectedMembers[id])
-    .reduce((sum, id) => sum + (parseFloat(customAmounts[id]) || 0), 0);
+    .reduce((sum, id) => {
+      if (splitType === "percentage") {
+        return sum + ((parseFloat(customPercentages[id] || 0) / 100) * parseFloat(amount || 0));
+      }
+      return sum + (parseFloat(customAmounts[id]) || 0);
+    }, 0);
   const remaining = parseFloat(amount || 0) - currentTotal;
+
+  const currentPercentTotal = Object.keys(selectedMembers)
+    .filter((id) => selectedMembers[id])
+    .reduce((sum, id) => sum + (parseFloat(customPercentages[id] || 0)), 0);
+
+  const remainingPercent = 100 - currentPercentTotal;
 
   const perPersonAmount =
     amount && selectedCount > 0
@@ -397,7 +530,7 @@ export default function AddExpenseScreen({ route, navigation }) {
                   </TouchableOpacity>
                 );
               })}
-              
+
               {/* Add Custom Category Button */}
               <TouchableOpacity
                 style={styles.categoryBubble}
@@ -596,7 +729,31 @@ export default function AddExpenseScreen({ route, navigation }) {
                   splitType === "custom" && styles.splitTypeTextActive,
                 ]}
               >
-                Custom Amount
+                Custom
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.splitTypeButtonNew,
+                splitType === "percentage" && styles.splitTypeButtonActive,
+              ]}
+              onPress={() => handleSplitTypeChange("percentage")}
+              activeOpacity={0.8}
+            >
+              <Ionicons
+                name="pie-chart-outline"
+                size={16}
+                color={splitType === "percentage" ? COLORS.white : COLORS.gray}
+                style={{ marginRight: 6 }}
+              />
+              <Text
+                style={[
+                  styles.splitTypeTextNew,
+                  splitType === "percentage" && styles.splitTypeTextActive,
+                ]}
+              >
+                By Percentage
               </Text>
             </TouchableOpacity>
           </ScrollView>
@@ -640,6 +797,25 @@ export default function AddExpenseScreen({ route, navigation }) {
                       />
                     </AnimatedView>
                   )}
+                  {splitType === "percentage" && selectedMembers[member._id] && (
+                    <AnimatedView entering={ZoomIn} style={styles.customPercentageOuterContainer}>
+                      <View style={styles.customPercentageContainer}>
+                        <TextInput
+                          style={styles.customPercentageInput}
+                          placeholder="0"
+                          placeholderTextColor={COLORS.gray}
+                          keyboardType="decimal-pad"
+                          value={customPercentages[member._id] || ""}
+                          onChangeText={(val) => handleCustomPercentageChange(member._id, val)}
+                        />
+                        <Text style={styles.customPercentageSymbol}>%</Text>
+                      </View>
+                      <Text style={styles.calculatedAmountText}>
+                        {currencySymbol}
+                        {((parseFloat(customPercentages[member._id] || 0) / 100) * parseFloat(amount || 0)).toFixed(2)}
+                      </Text>
+                    </AnimatedView>
+                  )}
                   <Switch
                     value={selectedMembers[member._id]}
                     onValueChange={() => toggleMember(member._id)}
@@ -652,6 +828,56 @@ export default function AddExpenseScreen({ route, navigation }) {
                 </View>
               </AnimatedView>
             ))}
+          </View>
+        </AnimatedView>
+
+        {/* Receipt Attachment Section */}
+        <AnimatedView entering={FadeInDown.duration(400).delay(450)}>
+          <Text style={styles.sectionLabel}>Attachment</Text>
+          <View style={styles.attachmentCard}>
+            {uploadingAttachment ? (
+              <View style={styles.uploadingContainer}>
+                <ActivityIndicator size="small" color={COLORS.primary} />
+                <Text style={styles.uploadingText}>Uploading to Cloudinary...</Text>
+              </View>
+            ) : attachment ? (
+              (() => {
+                const isPdf = attachment.toLowerCase().endsWith(".pdf") || attachment.toLowerCase().includes(".pdf");
+                return (
+                  <View style={styles.previewContainer}>
+                    {isPdf ? (
+                      <View style={[styles.previewImage, { backgroundColor: '#FEE2E2', alignItems: 'center', justifyContent: 'center', borderRadius: 8 }]}>
+                        <Ionicons name="document-text" size={32} color={COLORS.danger} />
+                      </View>
+                    ) : (
+                      <Image source={{ uri: attachment }} style={styles.previewImage} />
+                    )}
+                    <View style={styles.previewInfo}>
+                      <Text style={styles.previewTitle} numberOfLines={1}>
+                        {isPdf ? "Receipt PDF" : "Receipt Image"}
+                      </Text>
+                      <Text style={styles.previewSubtitle}>Successfully uploaded</Text>
+                    </View>
+                    <TouchableOpacity
+                      style={styles.removeButton}
+                      onPress={handleRemoveAttachment}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="close-circle" size={24} color={COLORS.danger} />
+                    </TouchableOpacity>
+                  </View>
+                );
+              })()
+            ) : (
+              <TouchableOpacity
+                style={styles.pickButton}
+                onPress={handlePickAttachment}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="document-attach-outline" size={24} color={COLORS.primary} style={{ marginRight: 8 }} />
+                <Text style={styles.pickButtonText}>Attach Receipt (Image or PDF)</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </AnimatedView>
 
@@ -686,6 +912,28 @@ export default function AddExpenseScreen({ route, navigation }) {
                 </Text>
                 <Text style={[styles.summaryValue, { color: Math.abs(remaining) > 0.01 ? COLORS.danger : COLORS.success }]}>
                   {Math.abs(remaining) < 0.01 ? `Total: ${currencySymbol}${parseFloat(amount).toFixed(2)}` : `${currencySymbol}${Math.abs(remaining).toFixed(2)}`}
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {amount && splitType === "percentage" && (
+            <View style={[styles.summaryCard, Math.abs(remainingPercent) > 0.01 ? styles.summaryError : styles.summarySuccess]}>
+              <View style={styles.summaryIcon}>
+                <Ionicons
+                  name={Math.abs(remainingPercent) > 0.01 ? "alert-circle" : "checkmark-circle"}
+                  size={24}
+                  color={Math.abs(remainingPercent) > 0.01 ? COLORS.danger : COLORS.success}
+                />
+              </View>
+              <View style={styles.summaryTextContainer}>
+                <Text style={[styles.summaryLabel, { color: Math.abs(remainingPercent) > 0.01 ? COLORS.danger : COLORS.success }]}>
+                  {Math.abs(remainingPercent) < 0.01
+                    ? "Perfect percentage match!"
+                    : `${remainingPercent > 0 ? "Remaining" : "Exceeded"} percentage`}
+                </Text>
+                <Text style={[styles.summaryValue, { color: Math.abs(remainingPercent) > 0.01 ? COLORS.danger : COLORS.success }]}>
+                  {Math.abs(remainingPercent) < 0.01 ? `Total: 100%` : `${Math.abs(remainingPercent).toFixed(1)}%`}
                 </Text>
               </View>
             </View>
@@ -1262,6 +1510,47 @@ const styles = StyleSheet.create({
     color: COLORS.dark,
     textAlign: "right",
   },
+  customPercentageOuterContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  customPercentageContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.white,
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    borderWidth: 1.5,
+    borderColor: "#8B5CF6" + "35",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  customPercentageInput: {
+    width: 45,
+    paddingVertical: 6,
+    fontSize: 14,
+    fontWeight: "700",
+    color: COLORS.dark,
+    textAlign: "right",
+  },
+  customPercentageSymbol: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#8B5CF6",
+    marginLeft: 2,
+  },
+  calculatedAmountText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: COLORS.gray,
+    marginLeft: 8,
+    minWidth: 50,
+    textAlign: "left",
+  },
   switch: {
     transform: [{ scaleX: 0.85 }, { scaleY: 0.85 }],
   },
@@ -1526,5 +1815,77 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontSize: 15,
     fontWeight: "bold",
+  },
+  attachmentCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: 16,
+    padding: 12,
+    marginBottom: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  uploadingContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 16,
+  },
+  uploadingText: {
+    marginLeft: 10,
+    fontSize: 14,
+    color: COLORS.gray,
+    fontWeight: "500",
+  },
+  previewContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F9FAFB",
+    borderRadius: 12,
+    padding: 8,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  previewImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 8,
+    backgroundColor: "#E5E7EB",
+  },
+  previewInfo: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  previewTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: COLORS.dark,
+    marginBottom: 2,
+  },
+  previewSubtitle: {
+    fontSize: 12,
+    color: COLORS.success,
+    fontWeight: "500",
+  },
+  removeButton: {
+    padding: 4,
+  },
+  pickButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 14,
+    borderWidth: 1.5,
+    borderStyle: "dashed",
+    borderColor: COLORS.primary + "60",
+    borderRadius: 12,
+    backgroundColor: COLORS.primary + "04",
+  },
+  pickButtonText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: COLORS.primary,
   },
 });

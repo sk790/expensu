@@ -21,10 +21,11 @@ import { COLORS } from "../../utils/constants";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import AnimatedView from "../../components/AnimatedView";
 import * as Haptics from "expo-haptics";
-import { userService } from "../../services/authService";
+import { userService, uploadService } from "../../services/authService";
 import { useAlert } from "../../hooks/useAlert";
 import CustomAlert from "../../components/CustomAlert";
 import { useAuth } from "../../context/AuthContext";
+import * as ImagePicker from "expo-image-picker";
 
 const InputField = ({ label, value, onChange, placeholder, icon }) => (
   <View style={styles.inputContainer}>
@@ -69,6 +70,7 @@ export default function EditProfileScreen({ navigation, route }) {
   const { alertProps, showAlert } = useAlert();
   const [loading, setLoading] = useState(false);
   const [pickerVisible, setPickerVisible] = useState(false);
+  const [uploading, setUploading] = useState(false);
   
   const [formData, setFormData] = useState({
     name: "",
@@ -77,6 +79,102 @@ export default function EditProfileScreen({ navigation, route }) {
   });
 
   const { updateUser } = useAuth();
+
+  const handlePickImage = async () => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        showAlert({
+          type: "error",
+          title: "Permission Denied",
+          message: "We need access to your media library to upload a profile picture.",
+        });
+        return;
+      }
+
+      setPickerVisible(false);
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const localUri = result.assets[0].uri;
+        await uploadProfilePicture(localUri);
+      }
+    } catch (error) {
+      console.error("Gallery picker error:", error);
+      showAlert({
+        type: "error",
+        title: "Error",
+        message: "Failed to open gallery.",
+      });
+    }
+  };
+
+  const handleTakePhoto = async () => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== "granted") {
+        showAlert({
+          type: "error",
+          title: "Permission Denied",
+          message: "We need access to your camera to take a profile picture.",
+        });
+        return;
+      }
+
+      setPickerVisible(false);
+
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const localUri = result.assets[0].uri;
+        await uploadProfilePicture(localUri);
+      }
+    } catch (error) {
+      console.error("Camera error:", error);
+      showAlert({
+        type: "error",
+        title: "Error",
+        message: "Failed to open camera.",
+      });
+    }
+  };
+
+  const uploadProfilePicture = async (localUri) => {
+    setUploading(true);
+    try {
+      const response = await uploadService.uploadImage(localUri, "avatars");
+      if (response.success && response.url) {
+        setFormData((prev) => ({ ...prev, avatar: response.url }));
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } else {
+        throw new Error("Failed to get image URL from response.");
+      }
+    } catch (error) {
+      console.error("Upload avatar failed:", error);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      showAlert({
+        type: "error",
+        title: "Upload Failed",
+        message: "Failed to upload image. Please try again.",
+      });
+    } finally {
+      setUploading(false);
+    }
+  };
 
   useEffect(() => {
     if (route.params?.user) {
@@ -157,25 +255,35 @@ export default function EditProfileScreen({ navigation, route }) {
             <AnimatedView entering={FadeInDown.duration(400).delay(100)}>
               <View style={styles.avatarSection}>
                 <TouchableOpacity 
-                  style={styles.avatarCircle}
+                  style={[styles.avatarCircle, uploading && styles.avatarCircleDisabled]}
                   onPress={() => {
+                    if (uploading) return;
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                     setPickerVisible(true);
                   }}
-                  activeOpacity={0.9}
+                  activeOpacity={uploading ? 1 : 0.9}
+                  disabled={uploading}
                 >
                   {formData.avatar ? (
-                    <Image source={{ uri: formData.avatar }} style={styles.avatarImage} />
+                    <Image source={{ uri: formData.avatar }} style={[styles.avatarImage, uploading && { opacity: 0.5 }]} />
                   ) : (
                     <Text style={styles.avatarText}>
                       {formData.name ? formData.name.substring(0, 2).toUpperCase() : "U"}
                     </Text>
                   )}
-                  <View style={styles.editBadge}>
-                    <Ionicons name="pencil" size={14} color="#FFF" />
-                  </View>
+                  {uploading ? (
+                    <View style={styles.uploadingOverlay}>
+                      <ActivityIndicator size="small" color="#FFF" />
+                    </View>
+                  ) : (
+                    <View style={styles.editBadge}>
+                      <Ionicons name="pencil" size={14} color="#FFF" />
+                    </View>
+                  )}
                 </TouchableOpacity>
-                <Text style={styles.avatarHint}>Tap to change avatar</Text>
+                <Text style={styles.avatarHint}>
+                  {uploading ? "Uploading profile picture..." : "Tap to change avatar"}
+                </Text>
               </View>
 
               <View style={styles.card}>
@@ -224,10 +332,39 @@ export default function EditProfileScreen({ navigation, route }) {
             <TouchableWithoutFeedback>
               <View style={styles.modalContent}>
                 <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitle}>Choose an Avatar</Text>
+                  <Text style={styles.modalTitle}>Choose Profile Photo</Text>
                   <TouchableOpacity onPress={() => setPickerVisible(false)}>
                     <Ionicons name="close" size={24} color={COLORS.dark} />
                   </TouchableOpacity>
+                </View>
+
+                {/* Upload Action Row */}
+                <View style={styles.uploadSection}>
+                  <TouchableOpacity 
+                    style={styles.uploadButton} 
+                    onPress={handlePickImage}
+                  >
+                    <View style={[styles.uploadIconContainer, { backgroundColor: COLORS.primary + "15" }]}>
+                      <Ionicons name="image-outline" size={20} color={COLORS.primary} />
+                    </View>
+                    <Text style={styles.uploadButtonText}>Gallery</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity 
+                    style={styles.uploadButton} 
+                    onPress={handleTakePhoto}
+                  >
+                    <View style={[styles.uploadIconContainer, { backgroundColor: COLORS.secondary + "15" }]}>
+                      <Ionicons name="camera-outline" size={20} color={COLORS.secondary} />
+                    </View>
+                    <Text style={styles.uploadButtonText}>Camera</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.dividerContainer}>
+                  <View style={styles.dividerLine} />
+                  <Text style={styles.dividerText}>OR SELECT AN AVATAR</Text>
+                  <View style={styles.dividerLine} />
                 </View>
                 
                 <ScrollView contentContainerStyle={styles.avatarGrid} showsVerticalScrollIndicator={false}>
@@ -447,5 +584,67 @@ const styles = StyleSheet.create({
     width: 58,
     height: 58,
     borderRadius: 29,
+  },
+  uploadSection: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 12,
+    marginBottom: 8,
+  },
+  uploadButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F9F9FB",
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#EAEAEA",
+  },
+  uploadIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 10,
+  },
+  uploadButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: COLORS.dark,
+    flex: 1,
+  },
+  dividerContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginVertical: 18,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: "#EAEAEA",
+  },
+  dividerText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: COLORS.gray,
+    marginHorizontal: 12,
+    letterSpacing: 1,
+  },
+  uploadingOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    borderRadius: 50,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  avatarCircleDisabled: {
+    opacity: 0.9,
   },
 });

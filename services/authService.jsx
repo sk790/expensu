@@ -58,26 +58,30 @@ export const groupService = {
     return response.data;
   },
 
-  async addExpense(groupId, amount, splitBetween, description, paidBy, category) {
+  async addExpense(groupId, amount, splitBetween, description, paidBy, category, attachment, attachmentPublicId) {
     const response = await api.post(`groups/${groupId}/expenses`, {
       amount,
       splitBetween,
       description,
       paidBy,
       category,
+      attachment,
+      attachmentPublicId,
     });
     console.log(response);
-    
+
     return response.data;
   },
 
-  async editExpense(groupId, expenseId, amount, splitBetween, description, paidBy, category) {
+  async editExpense(groupId, expenseId, amount, splitBetween, description, paidBy, category, attachment, attachmentPublicId) {
     const response = await api.put(`groups/${groupId}/expenses/${expenseId}`, {
       amount,
       splitBetween,
       description,
       paidBy,
       category,
+      attachment,
+      attachmentPublicId,
     });
     return response.data;
   },
@@ -207,5 +211,56 @@ export const categoryService = {
     const response = await api.post("categories", { name, icon, color });
     return response.data;
   }
+};
+
+export const uploadService = {
+  async uploadImage(imageUri, folder = "splitmate") {
+    const formData = new FormData();
+
+    // Extract filename and type from the uri robustly
+    const uriParts = imageUri.split('?')[0].split('.');
+    const ext = uriParts.length > 1 ? uriParts.pop().toLowerCase() : 'jpeg';
+    // Normalize common extensions
+    const fileType = ext === 'jpg' ? 'jpeg' : ext;
+
+    let fileName = imageUri.split('/').pop().split('?')[0] || 'upload';
+    if (!fileName.toLowerCase().endsWith(`.${ext}`)) {
+      fileName = `${fileName}.${ext}`;
+    }
+
+    formData.append('image', {
+      uri: imageUri,
+      name: fileName,
+      type: `image/${fileType}`,
+    });
+
+    const token = await storage.getToken();
+    const baseURL = api.defaults.baseURL;
+
+    const response = await fetch(`${baseURL}/upload?folder=${folder}`, {
+      method: "POST",
+      body: formData,
+      headers: {
+        "Authorization": token ? `Bearer ${token}` : "",
+        // Note: Do NOT set Content-Type header here.
+        // React Native's fetch automatically sets it with the correct boundary!
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.log("Upload error response body:", errorText);
+      let errorData;
+      try {
+        errorData = JSON.parse(errorText);
+      } catch (e) {
+        errorData = { message: "Internal Server Error during upload." };
+      }
+      throw new Error(errorData.message || "Upload failed");
+    }
+
+    const resData = await response.json();
+    return resData;
+  },
 };
 
