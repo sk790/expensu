@@ -27,6 +27,7 @@ import EditProfileScreen from "./home/EditProfileScreen";
 import WalletScreen from "./home/WalletScreen";
 import ReferAndEarnScreen from "./home/ReferAndEarnScreen";
 import InvitationsScreen from "./home/InvitationsScreen";
+import JoinGroupScreen from "./groups/JoinGroupScreen";
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -101,6 +102,11 @@ function GroupsStack() {
         name="Invitations"
         component={InvitationsScreen}
         options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="JoinGroup"
+        component={JoinGroupScreen}
+        options={{ title: "Join Group" }}
       />
     </Stack.Navigator>
   );

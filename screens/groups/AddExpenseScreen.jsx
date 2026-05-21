@@ -445,22 +445,6 @@ export default function AddExpenseScreen({ route, navigation }) {
     >
       <CustomAlert {...alertProps} />
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-
-        {/* Header / Title Area */}
-        <AnimatedView entering={FadeInDown.duration(400).delay(100)} style={styles.headerContainer}>
-          <View style={styles.iconCircle}>
-            <MaterialIcons name="receipt-long" size={24} color={COLORS.primary} />
-          </View>
-          <View style={styles.headerTextContainer}>
-            <Text style={styles.headerTitle}>
-              {isEditing ? "Edit Expense" : "New Expense"}
-            </Text>
-            <Text style={styles.headerSubtitle}>
-              Enter details below to track spending
-            </Text>
-          </View>
-        </AnimatedView>
-
         {/* Input Form */}
         <AnimatedView entering={FadeInDown.duration(400).delay(200)} style={styles.formCard}>
           <View style={[styles.inputGroup, focusedInput === 'amount' && styles.inputGroupFocused]}>

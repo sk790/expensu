@@ -168,12 +168,7 @@ export default function ExpenseDetailScreen({ route, navigation }) {
   return (
     <View style={styles.container}>
       <CustomAlert {...alertProps} />
-      {refreshing && (
-        <View style={styles.refreshBar}>
-          <ActivityIndicator size="small" color={COLORS.primary} />
-          <Text style={styles.refreshText}>Refreshing...</Text>
-        </View>
-      )}
+
       <ScrollView
         showsVerticalScrollIndicator={false}
         style={styles.scrollView}
@@ -387,15 +382,7 @@ const styles = StyleSheet.create({
   },
   scrollView: { flex: 1 },
   scrollContent: { padding: 20 },
-  refreshBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    paddingVertical: 8,
-    backgroundColor: COLORS.primary + "10",
-  },
-  refreshText: { fontSize: 13, color: COLORS.primary, fontWeight: "500" },
+
   amountCard: {
     backgroundColor: COLORS.white,
     borderRadius: 20,

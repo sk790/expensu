@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Notifications from "expo-notifications";
 import {
@@ -63,6 +63,8 @@ export default function GroupsListScreen({ navigation }) {
   const { user } = useAuth();
   const { alertProps, showAlert } = useAlert();
   const insets = useSafeAreaInsets();
+  const swipeableRefs = useRef({});
+  const [activeSwipeableId, setActiveSwipeableId] = useState(null);
 
   const fetchGroups = async () => {
     try {
@@ -119,6 +121,13 @@ export default function GroupsListScreen({ navigation }) {
     });
   };
 
+  const closeActiveSwipeable = useCallback(() => {
+    if (activeSwipeableId && swipeableRefs.current[activeSwipeableId]) {
+      swipeableRefs.current[activeSwipeableId].close();
+      setActiveSwipeableId(null);
+    }
+  }, [activeSwipeableId]);
+
   const renderRightActions = (group) => {
     return (
       <View style={styles.rightActions}>
@@ -126,6 +135,8 @@ export default function GroupsListScreen({ navigation }) {
           style={[styles.actionBtn, { backgroundColor: "#FFC107" }]}
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            swipeableRefs.current[group._id]?.close();
+            setActiveSwipeableId(null);
             navigation.navigate("CreateGroup", { group });
           }}
         >
@@ -134,7 +145,11 @@ export default function GroupsListScreen({ navigation }) {
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.actionBtn, { backgroundColor: COLORS.danger }]}
-          onPress={() => handleDeleteGroup(group)}
+          onPress={() => {
+            swipeableRefs.current[group._id]?.close();
+            setActiveSwipeableId(null);
+            handleDeleteGroup(group);
+          }}
         >
           <Ionicons name="trash-outline" size={20} color="#FFF" />
           <Text style={styles.actionText}>Delete</Text>
@@ -167,6 +182,17 @@ export default function GroupsListScreen({ navigation }) {
     };
   }, []);
 
+  // Close swipeable when user switches tabs or navigates away (bottom tabs are outside screen touch area)
+  React.useEffect(() => {
+    const unsubscribe = navigation.addListener("blur", () => {
+      if (activeSwipeableId && swipeableRefs.current[activeSwipeableId]) {
+        swipeableRefs.current[activeSwipeableId].close();
+        setActiveSwipeableId(null);
+      }
+    });
+    return unsubscribe;
+  }, [navigation, activeSwipeableId]);
+
   const onRefresh = () => {
     setRefreshing(true);
     fetchGroups();
@@ -189,7 +215,7 @@ export default function GroupsListScreen({ navigation }) {
   }
 
   return (
-    <View style={styles.root}>
+    <View style={styles.root} onTouchStart={closeActiveSwipeable}>
       <StatusBar
         barStyle="light-content"
         backgroundColor={ACCENT}
@@ -234,6 +260,16 @@ export default function GroupsListScreen({ navigation }) {
             </View>
 
             <View style={{ flexDirection: "row", gap: 12 }}>
+              <TouchableOpacity
+                style={styles.notificationBtn}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  navigation.navigate("JoinGroup", { inviteCode: "" });
+                }}
+              >
+                <Ionicons name="scan-outline" size={22} color="#FFF" />
+              </TouchableOpacity>
+
               <TouchableOpacity
                 style={styles.notificationBtn}
                 onPress={() => {
@@ -292,6 +328,7 @@ export default function GroupsListScreen({ navigation }) {
         data={filteredGroups}
         keyExtractor={(item) => item._id}
         showsVerticalScrollIndicator={false}
+        onScrollBeginDrag={closeActiveSwipeable}
         contentContainerStyle={
           filteredGroups.length === 0 ? styles.emptyList : styles.listContent
         }
@@ -309,14 +346,35 @@ export default function GroupsListScreen({ navigation }) {
             layout={Layout.springify()}
           >
             <Swipeable
+              ref={(ref) => {
+                if (ref) {
+                  swipeableRefs.current[item._id] = ref;
+                } else {
+                  delete swipeableRefs.current[item._id];
+                }
+              }}
               renderRightActions={() => renderRightActions(item)}
               friction={2}
               rightThreshold={40}
+              onSwipeableOpen={() => {
+                // Close any previously open swipeable
+                if (activeSwipeableId && activeSwipeableId !== item._id) {
+                  swipeableRefs.current[activeSwipeableId]?.close();
+                }
+                setActiveSwipeableId(item._id);
+              }}
+              onSwipeableClose={() => {
+                setActiveSwipeableId((prev) =>
+                  prev === item._id ? null : prev
+                );
+              }}
             >
               <GroupCard
                 group={item}
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  // Close any open swipeable before navigating
+                  closeActiveSwipeable();
                   navigation.navigate("GroupDetails", { groupId: item._id });
                 }}
               />

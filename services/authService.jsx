@@ -58,6 +58,16 @@ export const groupService = {
     return response.data;
   },
 
+  async getGroupByInvite(inviteCode) {
+    const response = await api.get(`groups/invite/${inviteCode}/preview`);
+    return response.data;
+  },
+
+  async joinGroupByInviteCode(inviteCode) {
+    const response = await api.post("groups/join-code", { inviteCode });
+    return response.data;
+  },
+
   async addExpense(groupId, amount, splitBetween, description, paidBy, category, attachment, attachmentPublicId) {
     const response = await api.post(`groups/${groupId}/expenses`, {
       amount,
@@ -132,6 +142,11 @@ export const groupService = {
     return response.data;
   },
 
+  async regenerateInviteCode(groupId) {
+    const response = await api.post(`groups/${groupId}/regenerate-invite`);
+    return response.data;
+  },
+
   async updateGroup(groupId, name, currency) {
     const response = await api.put(`groups/${groupId}`, { name, currency });
     return response.data;
@@ -190,6 +205,11 @@ export const groupInvitationService = {
 
   async respondToInvitation(invitationId, status) {
     const response = await api.post("group-invitations/respond", { invitationId, status });
+    return response.data;
+  },
+
+  async cancelInvitation(groupId, inviteeId) {
+    const response = await api.post("group-invitations/cancel", { groupId, inviteeId });
     return response.data;
   },
 };

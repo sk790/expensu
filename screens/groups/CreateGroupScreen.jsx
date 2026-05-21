@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -11,11 +11,14 @@ import {
   KeyboardAvoidingView,
   Platform,
   StatusBar,
+  Image,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { groupService, userService } from "../../services/authService";
+import QRCode from "react-native-qrcode-svg";
+import * as Clipboard from "expo-clipboard";
+import { groupService } from "../../services/authService";
 import { COLORS, SHADOWS } from "../../utils/constants";
 import { FadeInDown, FadeInUp, ZoomIn } from "react-native-reanimated";
 import AnimatedView from "../../components/AnimatedView";
@@ -43,55 +46,76 @@ export default function CreateGroupScreen({ navigation, route }) {
   const [currencyDropdownOpen, setCurrencyDropdownOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [focused, setFocused] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searching, setSearching] = useState(false);
-  const [searchResults, setSearchResults] = useState([]);
-  const [selectedMembers, setSelectedMembers] = useState([]);
   const { alertProps, showAlert } = useAlert();
+  const [activeTab, setActiveTab] = useState("members"); // "members" or "qrCode"
+  const [copied, setCopied] = useState(false);
+  const [members, setMembers] = useState(groupToEdit?.members || []);
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (searchQuery.trim().length >= 1) {
-        performSearch(searchQuery.trim());
-      } else {
-        setSearchResults([]);
-      }
-    }, 300);
-
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
-
-  const performSearch = async (query) => {
-    setSearching(true);
-    try {
-      const response = await userService.searchUserByEmail(query);
-      if (response.user) {
-        setSearchResults([response.user]);
-      } else {
-        setSearchResults([]);
-      }
-    } catch (error) {
-      setSearchResults([]);
-    } finally {
-      setSearching(false);
-    }
+  const handleCopyCode = async () => {
+    const inviteCode = groupToEdit?.inviteCode;
+    if (!inviteCode) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    await Clipboard.setStringAsync(inviteCode);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setCopied(true);
+    setTimeout(() => {
+      setCopied(false);
+    }, 2000);
   };
 
-  const handleSearch = (query) => {
-    setSearchQuery(query);
+  const handleShareInvite = () => {
+    const inviteCode = groupToEdit?.inviteCode;
+    if (!inviteCode) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Share.share({
+      message: `Join my group "${groupName}" on SplitMate! Use the invite code: ${inviteCode} to join instantly!`,
+    });
   };
 
-  const toggleMember = (user) => {
-    const isSelected = selectedMembers.some((m) => m.id === user.id);
-    if (isSelected) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      setSelectedMembers(selectedMembers.filter((m) => m.id !== user.id));
-    } else {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      setSelectedMembers([...selectedMembers, user]);
-      setSearchQuery("");
-      setSearchResults([]);
-    }
+  const handleRemoveMember = (member) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    showAlert({
+      type: "confirm",
+      title: "Remove Member",
+      message: `Are you sure you want to remove ${member.name} from "${groupName}"?`,
+      buttons: [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Remove",
+          style: "destructive",
+          onPress: async () => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+            setLoading(true);
+            try {
+              await groupService.removeMember(groupToEdit._id, member._id);
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              
+              const updatedMembers = members.filter((m) => (m._id || m.id) !== (member._id || member.id));
+              setMembers(updatedMembers);
+              
+              if (route.params?.group) {
+                route.params.group.members = updatedMembers;
+              }
+
+              showAlert({
+                type: "success",
+                title: "Member Removed ✨",
+                message: `${member.name} has been removed successfully from "${groupName}".`,
+              });
+            } catch (error) {
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+              showAlert({
+                type: "error",
+                title: "Error",
+                message: error.response?.data?.message || "Failed to remove member",
+              });
+            } finally {
+              setLoading(false);
+            }
+          },
+        },
+      ],
+    });
   };
 
   const handleAction = async () => {
@@ -119,20 +143,16 @@ export default function CreateGroupScreen({ navigation, route }) {
           buttons: [{ text: "Awesome", onPress: () => navigation.goBack() }],
         });
       } else {
-        const memberIds = selectedMembers.map((m) => m.id);
         const response = await groupService.createGroup(
           groupName.trim(),
-          memberIds,
+          [],
           currency,
         );
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         showAlert({
           type: "success",
           title: "Group Created! 🎉",
-          message:
-            selectedMembers.length > 0
-              ? `"${groupName}" is ready. Invitations have been sent to your friends.`
-              : `"${groupName}" is ready. Share the invite link with friends.`,
+          message: `"${groupName}" is ready. Share the invite link with friends.`,
           buttons: [
             {
               text: "Share Invite",
@@ -163,25 +183,6 @@ export default function CreateGroupScreen({ navigation, route }) {
     }
   };
 
-  // Determine active icon / letter preview for premium interactivity
-  const renderGroupIcon = () => {
-    const trimmed = groupName.trim();
-    if (trimmed.length > 0) {
-      return (
-        <Text style={styles.iconLetter}>
-          {trimmed.charAt(0).toUpperCase()}
-        </Text>
-      );
-    }
-    return (
-      <Ionicons
-        name={isEditing ? "create" : "people"}
-        size={34}
-        color="#FFF"
-      />
-    );
-  };
-
   return (
     <KeyboardAvoidingView
       style={styles.root}
@@ -196,27 +197,6 @@ export default function CreateGroupScreen({ navigation, route }) {
         contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 40 }]}
         keyboardShouldPersistTaps="handled"
       >
-        <AnimatedView entering={FadeInDown.duration(400).delay(50)}>
-          <View style={styles.heroSection}>
-            <LinearGradient
-              colors={[COLORS.gradientStart, COLORS.gradientEnd]}
-              style={[styles.iconCircle, SHADOWS.medium]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            >
-              {renderGroupIcon()}
-            </LinearGradient>
-            <Text style={styles.heroTitle}>
-              {isEditing ? "Edit Group" : "Create Group"}
-            </Text>
-            <Text style={styles.heroSubtitle}>
-              {isEditing
-                ? "Update your group details below"
-                : "Start a shared space to split expenses with friends"}
-            </Text>
-          </View>
-        </AnimatedView>
-
         {/* Input Card */}
         <AnimatedView
           entering={FadeInDown.duration(400).delay(120)}
@@ -270,7 +250,7 @@ export default function CreateGroupScreen({ navigation, route }) {
           style={[styles.card, SHADOWS.soft, { zIndex: 10 }]}
         >
           <Text style={styles.inputLabel}>Group Currency</Text>
-          
+
           <TouchableOpacity
             style={[
               styles.inputWrap,
@@ -336,113 +316,221 @@ export default function CreateGroupScreen({ navigation, route }) {
           )}
         </AnimatedView>
 
-        {/* Members Card */}
-        {!isEditing && (
-          <AnimatedView
-            entering={FadeInDown.duration(400).delay(180)}
-            style={[styles.card, SHADOWS.soft]}
-          >
-            <Text style={styles.inputLabel}>Add Members (Optional)</Text>
-            <View style={styles.searchWrap}>
-              <Ionicons
-                name="search-outline"
-                size={18}
-                color={COLORS.gray}
-                style={styles.searchIcon}
-              />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Search friend by email..."
-                placeholderTextColor="#9CA3AF"
-                value={searchQuery}
-                onChangeText={handleSearch}
-                autoCapitalize="none"
-                keyboardType="email-address"
-              />
-              {searching && (
-                <ActivityIndicator
-                  size="small"
-                  color={COLORS.primary}
-                  style={{ marginRight: 12 }}
-                />
-              )}
-            </View>
+        {/* Members & QR Card */}
+        <AnimatedView
+          entering={FadeInDown.duration(400).delay(180)}
+          style={[styles.card, SHADOWS.soft]}
+        >
+          {isEditing ? (
+            <>
+              <Text style={styles.inputLabel}>Group Members & Invite</Text>
 
-            {searchResults.length > 0 && (
-              <View style={styles.resultsList}>
-                {searchResults.map((user) => {
-                  const isAlreadySelected = selectedMembers.some((m) => m.id === user.id);
-                  return (
-                    <TouchableOpacity
-                      key={user.id}
-                      style={styles.resultItem}
-                      onPress={() => toggleMember(user)}
-                      activeOpacity={0.7}
-                    >
-                      <View style={styles.resultAvatar}>
-                        <Text style={styles.resultAvatarText}>
-                          {user.name.charAt(0).toUpperCase()}
-                        </Text>
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.resultName}>{user.name}</Text>
-                        <Text style={styles.resultEmail}>{user.email}</Text>
-                      </View>
-                      <Ionicons
-                        name={isAlreadySelected ? "checkmark-circle" : "add-circle-outline"}
-                        size={24}
-                        color={isAlreadySelected ? COLORS.success : COLORS.primary}
-                      />
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            )}
-
-            {/* Premium iMessage/WhatsApp Style Selected Members Avatar List */}
-            {selectedMembers.length > 0 && (
-              <View style={styles.selectedContainer}>
-                <Text style={styles.selectedTitle}>
-                  Added Members ({selectedMembers.length})
-                </Text>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.selectedAvatarScroll}
+              {/* Elegant Tabs Selector */}
+              <View style={styles.tabContainer}>
+                <TouchableOpacity
+                  style={[styles.tab, activeTab === "members" && styles.activeTab]}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setActiveTab("members");
+                  }}
+                  activeOpacity={0.7}
                 >
-                  {selectedMembers.map((member) => (
-                    <AnimatedView
-                      entering={ZoomIn.duration(300)}
-                      key={member.id}
-                      style={styles.selectedUserCard}
-                    >
-                      <View style={[styles.squircleAvatar, SHADOWS.soft]}>
-                        <LinearGradient
-                          colors={[COLORS.primary + "15", COLORS.secondary + "15"]}
-                          style={styles.squircleGradient}
-                        >
-                          <Text style={styles.squircleAvatarText}>
-                            {member.name.charAt(0).toUpperCase()}
-                          </Text>
-                        </LinearGradient>
+                  <Ionicons
+                    name="people-outline"
+                    size={18}
+                    color={activeTab === "members" ? COLORS.white : COLORS.gray}
+                  />
+                  <Text style={[styles.tabText, activeTab === "members" && styles.activeTabText]}>
+                    Members
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.tab, activeTab === "qrCode" && styles.activeTab]}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setActiveTab("qrCode");
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons
+                    name="qr-code-outline"
+                    size={18}
+                    color={activeTab === "qrCode" ? COLORS.white : COLORS.gray}
+                  />
+                  <Text style={[styles.tabText, activeTab === "qrCode" && styles.activeTabText]}>
+                    QR & Code
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Tab 1 Content: Members */}
+              {activeTab === "members" && (
+                <AnimatedView entering={FadeInUp.duration(300)}>
+                  <View style={styles.currentMembersContainer}>
+                    {members && members.length > 0 ? (
+                      <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={styles.selectedAvatarScroll}
+                      >
+                        {members.map((member) => {
+                          const isCreator = member._id === (groupToEdit?.createdBy?._id || groupToEdit?.createdBy);
+                          return (
+                            <View key={member._id || member.id} style={styles.selectedUserCard}>
+                              <View style={[styles.squircleAvatar, SHADOWS.soft]}>
+                                <LinearGradient
+                                  colors={[COLORS.primary + "15", COLORS.secondary + "15"]}
+                                  style={styles.squircleGradient}
+                                >
+                                  {member.avatar ? (
+                                    <Image source={{ uri: member.avatar }} style={styles.squircleAvatarImage} />
+                                  ) : (
+                                    <Text style={styles.squircleAvatarText}>
+                                      {member.name.charAt(0).toUpperCase()}
+                                    </Text>
+                                  )}
+                                </LinearGradient>
+
+                                {!isCreator && (
+                                  <TouchableOpacity
+                                    style={styles.removeBadge}
+                                    onPress={() => handleRemoveMember(member)}
+                                    activeOpacity={0.7}
+                                  >
+                                    <Ionicons name="close" size={10} color="#FFF" />
+                                  </TouchableOpacity>
+                                )}
+                              </View>
+                              <Text style={styles.selectedUserName} numberOfLines={1}>
+                                {member.name.split(" ")[0]}
+                              </Text>
+                            </View>
+                          );
+                        })}
+                      </ScrollView>
+                    ) : (
+                      <Text style={styles.noMembersText}>No members in this group yet.</Text>
+                    )}
+                  </View>
+                </AnimatedView>
+              )}
+
+              {/* Tab 2 Content: QR & Code */}
+              {activeTab === "qrCode" && (
+                <AnimatedView entering={FadeInUp.duration(300)} style={styles.qrTabView}>
+                  <View style={styles.qrCard}>
+                    <Text style={styles.qrTitle}>Join Group Instantly</Text>
+                    <Text style={styles.qrDesc}>
+                      Share this QR Code or the invite code with your friends to let them join instantly.
+                    </Text>
+
+                    {/* Live Generated QR Code */}
+                    <View style={styles.qrContainer}>
+                      {groupToEdit?.inviteCode ? (
+                        <QRCode
+                          value={`splitmate://join/${groupToEdit.inviteCode}`}
+                          size={160}
+                          color={COLORS.primary}
+                          backgroundColor={COLORS.white}
+                          logo={require("../../assets/images/icon.png")}
+                          logoSize={32}
+                          logoBorderRadius={6}
+                          logoBackgroundColor="white"
+                        />
+                      ) : (
+                        <ActivityIndicator size="medium" color={COLORS.primary} />
+                      )}
+                    </View>
+
+                    {/* Invite Code Row */}
+                    <View style={styles.codeTextContainer}>
+                      <Text style={styles.codeLabel}>INVITE CODE</Text>
+                      <View style={styles.codeRow}>
+                        <Text style={styles.codeDisplay}>{groupToEdit?.inviteCode || "------"}</Text>
                         <TouchableOpacity
-                          style={styles.removeBadge}
-                          onPress={() => toggleMember(member)}
+                          style={[styles.copyBtn, copied && styles.copyBtnCopied]}
+                          onPress={handleCopyCode}
                           activeOpacity={0.7}
                         >
-                          <Ionicons name="close" size={10} color="#FFF" />
+                          {copied ? (
+                            <AnimatedView entering={ZoomIn.duration(300)} key="check-icon" style={styles.copyBtnContent}>
+                              <Ionicons name="checkmark-circle" size={14} color="#10B981" />
+                              <Text style={styles.copiedText}>Copied</Text>
+                            </AnimatedView>
+                          ) : (
+                            <AnimatedView entering={ZoomIn.duration(300)} key="copy-icon" style={styles.copyBtnContent}>
+                              <Ionicons name="copy-outline" size={14} color={COLORS.primary} />
+                              <Text style={styles.copyText}>Copy</Text>
+                            </AnimatedView>
+                          )}
                         </TouchableOpacity>
                       </View>
-                      <Text style={styles.selectedUserName} numberOfLines={1}>
-                        {member.name.split(" ")[0]}
+                    </View>
+
+                    {/* Share button */}
+                    <TouchableOpacity
+                      style={styles.shareActionBtn}
+                      onPress={handleShareInvite}
+                      activeOpacity={0.8}
+                    >
+                      <LinearGradient
+                        colors={[COLORS.primary, "#6366f1"]}
+                        style={styles.shareGrad}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 0 }}
+                      >
+                        <Ionicons name="share-social-outline" size={20} color="#FFF" style={{ marginRight: 6 }} />
+                        <Text style={styles.shareText}>Share Invite Link</Text>
+                      </LinearGradient>
+                    </TouchableOpacity>
+                  </View>
+                </AnimatedView>
+              )}
+            </>
+          ) : (
+            /* Creation Mode: Direct Locked Preview */
+            <>
+              <Text style={styles.inputLabel}>Invite Friends Instantly</Text>
+              <AnimatedView entering={FadeInUp.duration(300)} style={[styles.qrTabView, { marginTop: 12 }]}>
+                <View style={styles.qrCard}>
+                  <Text style={styles.qrTitle}>Join Group Instantly</Text>
+                  <Text style={styles.qrDesc}>
+                    Once your group is created, a unique QR Code and Invite Link will be generated instantly.
+                  </Text>
+
+                  {/* Locked/Mock QR Container */}
+                  <View style={styles.qrPlaceholderContainer}>
+                    <View style={[styles.qrContainer, { opacity: 0.25 }]}>
+                      <QRCode
+                        value="splitmate://preview"
+                        size={150}
+                        color="#9CA3AF"
+                        backgroundColor={COLORS.white}
+                      />
+                    </View>
+                    <View style={[styles.qrLockOverlay, SHADOWS.medium]}>
+                      <Ionicons name="lock-closed" size={24} color="#FFF" />
+                    </View>
+                  </View>
+
+                  <View style={styles.codeTextContainer}>
+                    <Text style={styles.codeLabel}>INVITE CODE</Text>
+                    <View style={[styles.codeRow, { justifyContent: "center" }]}>
+                      <Text style={[styles.codeDisplay, { color: COLORS.gray + "60", letterSpacing: 4 }]}>
+                        XXXXXX
                       </Text>
-                    </AnimatedView>
-                  ))}
-                </ScrollView>
-              </View>
-            )}
-          </AnimatedView>
-        )}
+                    </View>
+                  </View>
+
+                  <Text style={styles.qrInfoText}>
+                    ✨ Ready to be shared after creation!
+                  </Text>
+                </View>
+              </AnimatedView>
+            </>
+          )}
+        </AnimatedView>
 
         {/* Action Button */}
         <AnimatedView entering={FadeInUp.duration(400).delay(250)}>
@@ -573,62 +661,6 @@ const styles = StyleSheet.create({
   },
   btnText: { color: "#FFF", fontSize: 16, fontWeight: "850" },
 
-  searchWrap: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderWidth: 1.5,
-    borderColor: "#F0F0F5",
-    borderRadius: 14,
-    backgroundColor: "#FAFAFD",
-    paddingLeft: 12,
-    marginTop: 8,
-  },
-  searchIcon: { marginRight: 8 },
-  searchInput: {
-    flex: 1,
-    fontSize: 14,
-    color: COLORS.dark,
-    paddingVertical: 10,
-    fontWeight: "500",
-  },
-  resultsList: {
-    backgroundColor: "#F9FAFC",
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    marginTop: 10,
-    borderWidth: 1,
-    borderColor: "#EBEBF2",
-  },
-  resultItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 10,
-    borderBottomWidth: 0.5,
-    borderBottomColor: "#EBEBF2",
-  },
-  resultAvatar: {
-    width: 34,
-    height: 34,
-    borderRadius: 12,
-    backgroundColor: COLORS.primary + "15",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 12,
-  },
-  resultAvatarText: { color: COLORS.primary, fontWeight: "bold", fontSize: 14 },
-  resultName: { fontSize: 13, fontWeight: "700", color: COLORS.dark },
-  resultEmail: { fontSize: 11, color: COLORS.gray, marginTop: 1 },
-
-  selectedContainer: { marginTop: 16 },
-  selectedTitle: {
-    fontSize: 11,
-    fontWeight: "750",
-    color: COLORS.dark,
-    marginBottom: 10,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
   selectedAvatarScroll: { paddingVertical: 4 },
   selectedUserCard: {
     alignItems: "center",
@@ -655,19 +687,6 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     fontWeight: "700",
     fontSize: 16,
-  },
-  removeBadge: {
-    position: "absolute",
-    top: -4,
-    right: -4,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: COLORS.danger,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1.5,
-    borderColor: "#FFF",
   },
   selectedUserName: {
     fontSize: 10,
@@ -726,5 +745,200 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "500",
     color: COLORS.dark,
+  },
+
+  // Tab selector styles inside members card
+  tabContainer: {
+    flexDirection: "row",
+    backgroundColor: "#F0F0F5",
+    borderRadius: 12,
+    padding: 3,
+    marginTop: 12,
+    marginBottom: 16,
+  },
+  tab: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 8,
+    borderRadius: 9,
+    gap: 6,
+  },
+  activeTab: {
+    backgroundColor: COLORS.primary,
+  },
+  tabText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: COLORS.gray,
+  },
+  activeTabText: {
+    color: COLORS.white,
+    fontWeight: "700",
+  },
+
+  // QR Content Styles
+  qrTabView: {
+    width: "100%",
+    marginTop: 4,
+  },
+  qrCard: {
+    backgroundColor: "#FAFAFD",
+    borderRadius: 16,
+    padding: 16,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#EBEBF2",
+  },
+  qrTitle: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: COLORS.dark,
+    marginBottom: 4,
+  },
+  qrDesc: {
+    fontSize: 12,
+    color: COLORS.gray,
+    textAlign: "center",
+    marginBottom: 16,
+    lineHeight: 16,
+    paddingHorizontal: 12,
+  },
+  qrContainer: {
+    backgroundColor: COLORS.white,
+    padding: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#EBEBF2",
+    marginBottom: 16,
+  },
+  qrPlaceholderContainer: {
+    position: "relative",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+  },
+  qrLockOverlay: {
+    position: "absolute",
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: COLORS.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  qrInfoText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: COLORS.primary,
+    marginTop: 4,
+  },
+
+  // Invite code container and items
+  codeTextContainer: {
+    width: "100%",
+    backgroundColor: "#FFF",
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: "#EBEBF2",
+    marginBottom: 16,
+  },
+  codeLabel: {
+    fontSize: 9,
+    fontWeight: "800",
+    color: COLORS.gray,
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  codeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  codeDisplay: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: COLORS.dark,
+    letterSpacing: 1.5,
+  },
+  copyBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: COLORS.primary + "10",
+    borderWidth: 1,
+    borderColor: COLORS.primary + "20",
+  },
+  copyBtnCopied: {
+    backgroundColor: "#10B98110",
+    borderColor: "#10B98130",
+  },
+  copyBtnContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  copyText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: COLORS.primary,
+  },
+  copiedText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#10B981",
+  },
+
+  // Share invite button
+  shareActionBtn: {
+    width: "100%",
+    height: 48,
+    borderRadius: 12,
+    overflow: "hidden",
+  },
+  shareGrad: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  shareText: {
+    color: "#FFF",
+    fontSize: 14,
+    fontWeight: "750",
+  },
+
+  // Current Members styling
+  currentMembersContainer: {
+    marginTop: 4,
+  },
+  noMembersText: {
+    fontSize: 13,
+    color: COLORS.gray,
+    textAlign: "center",
+    marginVertical: 20,
+    fontStyle: "italic",
+  },
+  squircleAvatarImage: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 16,
+  },
+  removeBadge: {
+    position: "absolute",
+    top: -4,
+    right: -4,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: COLORS.danger,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: "#FFF",
+    zIndex: 10,
   },
 });

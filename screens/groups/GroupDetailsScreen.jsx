@@ -9,9 +9,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
+  Linking,
   Modal,
   Platform,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -63,6 +65,8 @@ export default function GroupDetailScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
   const [exporting, setExporting] = useState(false);
   const { alertProps, showAlert } = useAlert();
+  const [reminderModalVisible, setReminderModalVisible] = useState(false);
+  const [reminderData, setReminderData] = useState(null);
 
   const currencySymbol = CURRENCY_SYMBOLS[group?.currency] || "₹";
 
@@ -81,7 +85,7 @@ export default function GroupDetailScreen({ route, navigation }) {
 
     try {
       const totalAmount = expenses.reduce((sum, exp) => sum + (exp.amount || 0), 0);
-      
+
       const formatDate = (dateStr) => {
         const d = new Date(dateStr);
         return d.toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" });
@@ -98,7 +102,7 @@ export default function GroupDetailScreen({ route, navigation }) {
           .reduce((sum, exp) => sum + (exp.amount || 0), 0);
         return { name: m.name, amount: amt };
       });
-      
+
       // Sort members by total spending (descending order)
       memberSpending.sort((a, b) => b.amount - a.amount);
 
@@ -276,13 +280,13 @@ export default function GroupDetailScreen({ route, navigation }) {
       `;
 
       const { uri } = await Print.printToFileAsync({ html: htmlContent });
-      
+
       await Sharing.shareAsync(uri, {
         mimeType: "application/pdf",
         dialogTitle: `Export ${group?.name || "Group"} Expenses`,
         UTI: "com.adobe.pdf",
       });
-      
+
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
       console.error("PDF generation failed:", error);
@@ -346,6 +350,24 @@ export default function GroupDetailScreen({ route, navigation }) {
     } finally {
       setSettling(false);
     }
+  };
+
+  const handleSendReminder = (debtorUser, amount) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const groupName = group?.name || "our group";
+    const debtorName = debtorUser?.name || "there";
+    const myName = currentUser?.name || "your friend";
+    const symbol = currencySymbol;
+
+    const message =
+      `Hey ${debtorName}! 😊\n\n` +
+      `Just a gentle reminder — you have a pending balance of *${symbol}${amount.toFixed(2)}* ` +
+      `in our *"${groupName}"* group on SplitMate.\n\n` +
+      `No rush at all, just keeping things organised! 🙏\n\n` +
+      `— ${myName}`;
+
+    setReminderData({ message, debtorName });
+    setReminderModalVisible(true);
   };
 
   const fetchGroupDetails = async () => {
@@ -672,21 +694,30 @@ export default function GroupDetailScreen({ route, navigation }) {
                             </Text>
                           </View>
                           {isCurrentUserCreditor ? (
-                            <TouchableOpacity
-                              style={styles.settleButton}
-                              activeOpacity={0.8}
-                              onPress={() =>
-                                openSettleModal({
-                                  fromUser: user,
-                                  toUser: toUser,
-                                  amount: debt.amount,
-                                })
-                              }
-                            >
-                              <Text style={styles.settleButtonText}>
-                                Settle Up
-                              </Text>
-                            </TouchableOpacity>
+                            <View style={styles.creditorButtons}>
+                              <TouchableOpacity
+                                style={styles.settleButton}
+                                activeOpacity={0.8}
+                                onPress={() =>
+                                  openSettleModal({
+                                    fromUser: user,
+                                    toUser: toUser,
+                                    amount: debt.amount,
+                                  })
+                                }
+                              >
+                                <Ionicons name="checkmark-done-outline" size={13} color={COLORS.primary} />
+                                <Text style={styles.settleButtonText}>Settle Up</Text>
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                style={styles.remindBtn}
+                                activeOpacity={0.8}
+                                onPress={() => handleSendReminder(user, debt.amount)}
+                              >
+                                <Ionicons name="notifications-outline" size={13} color="#FF9500" />
+                                <Text style={styles.remindBtnText}>Remind</Text>
+                              </TouchableOpacity>
+                            </View>
                           ) : isCurrentUserDebtor ? (
                             <View style={styles.settleButtonDisabled}>
                               <Text style={styles.settleButtonDisabledText}>
@@ -766,7 +797,7 @@ export default function GroupDetailScreen({ route, navigation }) {
 
       <AnimatedView
         entering={ZoomIn.duration(400).delay(500)}
-        style={[styles.floatingButtonContainer, { bottom: insets.bottom+20 }]}
+        style={[styles.floatingButtonContainer, { bottom: insets.bottom + 20 }]}
       >
         <TouchableOpacity
           style={styles.floatingButton}
@@ -820,7 +851,7 @@ export default function GroupDetailScreen({ route, navigation }) {
                 />
               </TouchableOpacity>
             </View>
- 
+
             {settleData && (
               <View style={styles.modalUsersRow}>
                 <View style={styles.modalUserAvatar}>
@@ -872,6 +903,106 @@ export default function GroupDetailScreen({ route, navigation }) {
           </AnimatedView>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* Reminder Modal */}
+      <Modal
+  visible={reminderModalVisible}
+  transparent
+  animationType="slide"
+  onRequestClose={() => setReminderModalVisible(false)}
+>
+  <TouchableOpacity
+    style={styles.modalOverlay}
+    activeOpacity={1}
+    onPress={() => setReminderModalVisible(false)}
+  >
+    <TouchableOpacity activeOpacity={1} onPress={() => {}}>
+      <AnimatedView
+        entering={FadeInUp.duration(300)}
+        style={styles.reminderSheet}
+      >
+        <View style={styles.reminderSheetHandle} />
+
+        <View style={styles.reminderHeader}>
+          <View style={styles.reminderIconCircle}>
+            <Ionicons name="notifications" size={24} color="#FF9500" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.reminderTitle}>Send Reminder</Text>
+            <Text style={styles.reminderSubtitle}>To {reminderData?.debtorName}</Text>
+          </View>
+          <TouchableOpacity onPress={() => setReminderModalVisible(false)}>
+            <Ionicons name="close-circle-outline" size={26} color={COLORS.gray} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Message Preview */}
+        <View style={styles.msgPreviewBox}>
+          <Text style={styles.msgPreviewLabel}>Message Preview</Text>
+          <Text style={styles.msgPreviewText}>{reminderData?.message}</Text>
+        </View>
+
+        {/* Share Buttons */}
+        <Text style={styles.shareViaLabel}>Share via</Text>
+        <View style={styles.shareButtonsRow}>
+          {/* WhatsApp */}
+          <TouchableOpacity
+            style={[styles.shareAppBtn, { backgroundColor: "#25D366" }]}
+            activeOpacity={0.85}
+            onPress={async () => {
+              const encoded = encodeURIComponent(reminderData?.message || "");
+              const url = `whatsapp://send?text=${encoded}`;
+              const canOpen = await Linking.canOpenURL(url);
+              if (canOpen) {
+                Linking.openURL(url);
+              } else {
+                showAlert({ type: "error", title: "WhatsApp not found", message: "Please install WhatsApp to use this option." });
+              }
+              setReminderModalVisible(false);
+            }}
+          >
+            <Ionicons name="logo-whatsapp" size={22} color="#FFF" />
+            <Text style={styles.shareAppText}>WhatsApp</Text>
+          </TouchableOpacity>
+
+          {/* Telegram */}
+          <TouchableOpacity
+            style={[styles.shareAppBtn, { backgroundColor: "#2AABEE" }]}
+            activeOpacity={0.85}
+            onPress={async () => {
+              const encoded = encodeURIComponent(reminderData?.message || "");
+              const url = `tg://msg?text=${encoded}`;
+              const canOpen = await Linking.canOpenURL(url);
+              if (canOpen) {
+                Linking.openURL(url);
+              } else {
+                showAlert({ type: "error", title: "Telegram not found", message: "Please install Telegram to use this option." });
+              }
+              setReminderModalVisible(false);
+            }}
+          >
+            <Ionicons name="paper-plane-outline" size={22} color="#FFF" />
+            <Text style={styles.shareAppText}>Telegram</Text>
+          </TouchableOpacity>
+
+          {/* Native Share */}
+          <TouchableOpacity
+            style={[styles.shareAppBtn, { backgroundColor: COLORS.primary }]}
+            activeOpacity={0.85}
+            onPress={async () => {
+              await Share.share({ message: reminderData?.message || "" });
+              setReminderModalVisible(false);
+            }}
+          >
+            <Ionicons name="share-social-outline" size={22} color="#FFF" />
+            <Text style={styles.shareAppText}>More</Text>
+          </TouchableOpacity>
+        </View>
+      </AnimatedView>
+    </TouchableOpacity>
+  </TouchableOpacity>
+</Modal>
+
       <CustomAlert {...alertProps} />
     </View>
   );
@@ -1044,17 +1175,22 @@ const styles = StyleSheet.create({
     color: COLORS.danger,
   },
   settleButton: {
-    backgroundColor: COLORS.primary + "18",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    backgroundColor: COLORS.primary + "12",
     borderWidth: 1,
     borderColor: COLORS.primary + "35",
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 10,
+    alignSelf: "stretch",
   },
   settleButtonText: {
     color: COLORS.primary,
-    fontSize: 13,
-    fontWeight: "bold",
+    fontSize: 12,
+    fontWeight: "700",
   },
   settleButtonDisabled: {
     backgroundColor: "#F3F4F6",
@@ -1219,5 +1355,119 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     fontSize: 11,
     fontWeight: "800",
+  },
+
+  // Creditor action buttons column
+  creditorButtons: {
+    flexDirection: "column",
+    gap: 6,
+    alignItems: "flex-end",
+  },
+  remindBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    backgroundColor: "#FF950012",
+    borderWidth: 1,
+    borderColor: "#FF950035",
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 10,
+    alignSelf: "stretch",
+  },
+  remindBtnText: {
+    color: "#FF9500",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+
+  // Reminder Modal
+  reminderSheet: {
+    backgroundColor: "#FFF",
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    padding: 24,
+    paddingBottom: 36,
+    marginTop: "auto",
+  },
+  reminderSheetHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#E2E8F0",
+    alignSelf: "center",
+    marginBottom: 20,
+  },
+  reminderHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 20,
+  },
+  reminderIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#FF950015",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  reminderTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#1A1A2E",
+  },
+  reminderSubtitle: {
+    fontSize: 13,
+    color: "#888",
+    fontWeight: "500",
+  },
+  msgPreviewBox: {
+    backgroundColor: "#F8FAFC",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  msgPreviewLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#94A3B8",
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
+    marginBottom: 8,
+  },
+  msgPreviewText: {
+    fontSize: 14,
+    color: "#374151",
+    lineHeight: 22,
+  },
+  shareViaLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#94A3B8",
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
+    marginBottom: 12,
+  },
+  shareButtonsRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  shareAppBtn: {
+    flex: 1,
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 14,
+    borderRadius: 16,
+  },
+  shareAppText: {
+    color: "#FFF",
+    fontSize: 12,
+    fontWeight: "700",
   },
 });
