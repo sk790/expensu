@@ -52,11 +52,11 @@ export default function SecuritySettingsScreen({ navigation }) {
   return (
     <View style={styles.root}>
       <StatusBar barStyle="dark-content" backgroundColor="#F4F5FA" translucent />
-      
+
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-        <TouchableOpacity 
-          style={styles.backBtn} 
+        <TouchableOpacity
+          style={styles.backBtn}
           onPress={() => navigation.goBack()}
         >
           <Ionicons name="arrow-back" size={24} color={COLORS.dark} />
@@ -65,8 +65,8 @@ export default function SecuritySettingsScreen({ navigation }) {
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView 
-        showsVerticalScrollIndicator={false} 
+      <ScrollView
+        showsVerticalScrollIndicator={false}
         contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 20 }]}
       >
         <AnimatedView entering={FadeInDown.duration(400).delay(100)}>
@@ -92,7 +92,7 @@ export default function SecuritySettingsScreen({ navigation }) {
               value={passwordForm.confirm}
               onChange={(val) => setPasswordForm({ ...passwordForm, confirm: val })}
             />
-            
+
             <TouchableOpacity style={styles.updateBtn} onPress={() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)}>
               <Text style={styles.updateBtnText}>Update Password</Text>
             </TouchableOpacity>
