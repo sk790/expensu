@@ -3,6 +3,8 @@ import { useFocusEffect } from "@react-navigation/native";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useCallback, useMemo, useRef, useState } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import { fetchUserGroups, deleteUserGroup } from "../../store/slices/groupSlice";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Notifications from "expo-notifications";
 import {
@@ -55,37 +57,30 @@ function getFirstName(name = "") {
 }
 
 export default function GroupsListScreen({ navigation }) {
-  const [groups, setGroups] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const dispatch = useDispatch();
+  const { list: groups, loading, invitationsCount } = useSelector((state) => state.groups);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [invitationsCount, setInvitationsCount] = useState(0);
   const { user } = useAuth();
   const { alertProps, showAlert } = useAlert();
   const insets = useSafeAreaInsets();
   const swipeableRefs = useRef({});
   const [activeSwipeableId, setActiveSwipeableId] = useState(null);
 
-  const fetchGroups = async () => {
+  const fetchGroups = async (forceRefresh = false) => {
     try {
-      const groupsRes = await groupService.getUserGroups();
-      setGroups(groupsRes.data);
-
-      try {
-        const invRes = await groupInvitationService.getMyInvitations();
-        setInvitationsCount(invRes.data?.length || 0);
-      } catch (invError) {
-        console.error("Failed to fetch invitations:", invError);
-      }
+      await dispatch(fetchUserGroups(forceRefresh)).unwrap();
     } catch (error) {
-      console.error("Failed to fetch groups:", error);
-      showAlert({
-        type: "error",
-        title: "Error",
-        message: `Failed to fetch groups`,
-      });
+      // Aborted fetches throw a specific condition error, so we ignore it
+      if (error?.name !== 'ConditionError') {
+        console.error("Failed to fetch groups:", error);
+        showAlert({
+          type: "error",
+          title: "Error",
+          message: `Failed to fetch groups`,
+        });
+      }
     } finally {
-      setLoading(false);
       setRefreshing(false);
     }
   };
@@ -103,11 +98,10 @@ export default function GroupsListScreen({ navigation }) {
           style: "destructive",
           onPress: async () => {
             try {
-              await groupService.deleteGroup(group._id);
+              await dispatch(deleteUserGroup(group._id)).unwrap();
               Haptics.notificationAsync(
                 Haptics.NotificationFeedbackType.Success,
               );
-              fetchGroups();
             } catch (error) {
               showAlert({
                 type: "error",
@@ -195,7 +189,7 @@ export default function GroupsListScreen({ navigation }) {
 
   const onRefresh = () => {
     setRefreshing(true);
-    fetchGroups();
+    fetchGroups(true);
   };
 
   const filteredGroups = useMemo(() => {
@@ -210,7 +204,7 @@ export default function GroupsListScreen({ navigation }) {
     [groups],
   );
 
-  if (loading) {
+  if (loading && !refreshing) {
     return <LoadingSpinner message="Fetching your groups..." />;
   }
 

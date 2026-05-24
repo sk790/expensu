@@ -7,6 +7,8 @@ import { createStackNavigator } from "@react-navigation/stack";
 import SplashScreen from "../components/SplashScreen";
 import { registerForPushNotificationsAsync } from "../utils/notifications";
 import * as ExpoSplashScreen from "expo-splash-screen";
+import { Provider } from "react-redux";
+import { store } from "../store";
 
 // Keep native splash screen visible until we manually hide it
 ExpoSplashScreen.preventAutoHideAsync().catch(() => {});
@@ -51,8 +53,10 @@ export function AppNavigator() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <AppNavigator />
-    </AuthProvider>
+    <Provider store={store}>
+      <AuthProvider>
+        <AppNavigator />
+      </AuthProvider>
+    </Provider>
   );
 }
