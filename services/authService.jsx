@@ -284,3 +284,30 @@ export const uploadService = {
   },
 };
 
+export const friendService = {
+  async searchUsers(query) {
+    const response = await api.get("friends/search", { params: { query } });
+    return response.data;
+  },
+  async sendFriendRequest(recipientId) {
+    const response = await api.post("friends/request", { recipientId });
+    return response.data;
+  },
+  async getFriendRequests() {
+    const response = await api.get("friends/requests");
+    return response.data;
+  },
+  async respondFriendRequest(requestId, action) {
+    const response = await api.put(`friends/request/${requestId}`, { action });
+    return response.data;
+  },
+  async getFriends() {
+    const response = await api.get("friends");
+    return response.data;
+  },
+  async removeFriend(friendId) {
+    const response = await api.delete(`friends/${friendId}`);
+    return response.data;
+  },
+};
+

@@ -28,6 +28,7 @@ import WalletScreen from "./home/WalletScreen";
 import ReferAndEarnScreen from "./home/ReferAndEarnScreen";
 import InvitationsScreen from "./home/InvitationsScreen";
 import JoinGroupScreen from "./groups/JoinGroupScreen";
+import FriendsScreen from "./home/FriendsScreen";
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -169,6 +170,7 @@ export default function MainTabNavigator() {
         tabBarIcon: ({ focused, color, size }) => {
           const icons = {
             Groups: focused ? "people" : "people-outline",
+            Friends: focused ? "person-add" : "person-add-outline",
             History: focused ? "receipt" : "receipt-outline",
             AI: focused ? "sparkles" : "sparkles-outline",
             Profile: focused ? "person" : "person-outline",
@@ -205,6 +207,7 @@ export default function MainTabNavigator() {
       })}
     >
       <Tab.Screen name="Groups" component={GroupsStack} />
+      <Tab.Screen name="Friends" component={FriendsScreen} />
       <Tab.Screen name="History" component={HistoryScreen} />
       <Tab.Screen name="AI" component={AIChatScreen} />
       <Tab.Screen name="Profile" component={ProfileStack} />

@@ -3,12 +3,12 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   TouchableOpacity,
   ScrollView,
   StatusBar,
   Share,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../../context/AuthContext";
 import * as Clipboard from "expo-clipboard";
@@ -149,7 +149,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   illustrationContainer: {
-    marginVertical: 40,
+    marginTop: 12,
+    marginBottom: 28,
   },
   iconCircle: {
     width: 160,
