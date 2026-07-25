@@ -816,7 +816,7 @@ export default function GroupDetailScreen({ route, navigation }) {
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
           >
-            <Ionicons name="add" size={24} color={COLORS.white} />
+            <Ionicons name="add" size={18} color={COLORS.white} />
             <Text style={styles.fabLabel}>Add Expense</Text>
           </LinearGradient>
         </TouchableOpacity>
@@ -1048,7 +1048,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   listContainer: {
-    gap: 16,
+    gap: 8,
   },
   emptyContainer: {
     alignItems: "center",
@@ -1080,14 +1080,14 @@ const styles = StyleSheet.create({
   },
   floatingButtonContainer: {
     position: "absolute",
-    right: 24,
+    right: 20,
     zIndex: 10,
     alignItems: "center",
     justifyContent: "center",
   },
   floatingButton: {
-    height: 54,
-    borderRadius: 27,
+    height: 44,
+    borderRadius: 22,
     overflow: "hidden",
     // Explicitly no shadow
     shadowColor: "transparent",
@@ -1097,26 +1097,26 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 22,
-    gap: 8,
+    paddingHorizontal: 14,
+    gap: 6,
   },
   fabLabel: {
     color: "#FFF",
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: "800",
     letterSpacing: 0.3,
   },
   tabContainer: {
     flexDirection: "row",
-    marginBottom: 24,
+    marginBottom: 12,
     backgroundColor: "#EBEBF5",
     borderRadius: 14,
     padding: 4,
-    marginTop: 8,
+    marginTop: 4,
   },
   tabButton: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: 10,
     alignItems: "center",
     justifyContent: "center",
     position: "relative",
@@ -1138,8 +1138,8 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   balancesList: {
-    gap: 16,
-    marginTop: 16,
+    gap: 8,
+    marginTop: 10,
   },
   balanceCard: {
     flexDirection: "row",

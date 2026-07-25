@@ -16,7 +16,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import QRCode from "react-native-qrcode-svg";
 import * as Clipboard from "expo-clipboard";
-import { userService, groupInvitationService, groupService } from "../../services/authService";
+import { userService, groupInvitationService, groupService, friendService } from "../../services/authService";
 import { COLORS } from "../../utils/constants";
 import Animated, { FadeInUp, Layout, ZoomIn } from "react-native-reanimated";
 import { LinearGradient } from "expo-linear-gradient";
@@ -30,15 +30,25 @@ export default function AddMemberScreen({ route, navigation }) {
   const { groupId, currentMembers, isAdmin } = route.params;
   const insets = useSafeAreaInsets();
 
-  const [activeTab, setActiveTab] = useState("search"); // "search" or "inviteCode"
+  const [activeTab, setActiveTab] = useState("friends"); // "friends", "search", or "inviteCode"
   const [email, setEmail] = useState("");
   const [searchResults, setSearchResults] = useState(null);
+  const [isSearchUserFriend, setIsSearchUserFriend] = useState(false);
   const [loading, setLoading] = useState(false);
   const [searching, setSearching] = useState(false);
   const [invitationStatus, setInvitationStatus] = useState(null);
   const [cancellingInvite, setCancellingInvite] = useState(false);
   const [recentMembers, setRecentMembers] = useState([]);
   const { alertProps, showAlert } = useAlert();
+
+  // Friends Tab State
+  const [friendsList, setFriendsList] = useState([]);
+  const [loadingFriends, setLoadingFriends] = useState(false);
+  const [friendFilter, setFriendFilter] = useState("");
+  const [addedMemberIds, setAddedMemberIds] = useState(
+    (currentMembers || []).map((m) => (m._id || m.id).toString())
+  );
+  const [addingFriendId, setAddingFriendId] = useState(null);
 
   // Invite Code State
   const [groupDetails, setGroupDetails] = useState(null);
@@ -49,10 +59,23 @@ export default function AddMemberScreen({ route, navigation }) {
 
   useEffect(() => {
     loadRecentMembers();
+    fetchFriends();
     if (isAdmin) {
       fetchGroupDetails();
     }
   }, [groupId]);
+
+  const fetchFriends = async () => {
+    try {
+      setLoadingFriends(true);
+      const response = await friendService.getFriends();
+      setFriendsList(response.friends || []);
+    } catch (error) {
+      console.error("Failed to load friends:", error);
+    } finally {
+      setLoadingFriends(false);
+    }
+  };
 
   const loadRecentMembers = async () => {
     try {
@@ -83,6 +106,7 @@ export default function AddMemberScreen({ route, navigation }) {
       } else {
         setSearchResults(null);
         setInvitationStatus(null);
+        setIsSearchUserFriend(false);
       }
     }, 600);
     return () => clearTimeout(timer);
@@ -92,21 +116,60 @@ export default function AddMemberScreen({ route, navigation }) {
     setSearching(true);
     try {
       const response = await userService.searchUserByEmail(email.trim(), groupId);
-      const isAlreadyMember = currentMembers.some(
-        (member) => (member._id || member.id) === response.user.id
-      );
+      const isAlreadyMember = addedMemberIds.includes(response.user.id.toString());
       if (isAlreadyMember) {
         setSearchResults(null);
         setInvitationStatus(null);
+        setIsSearchUserFriend(false);
         return;
       }
       setSearchResults(response.user);
       setInvitationStatus(response.invitationStatus);
+      
+      const isFriend =
+        response.isFriend ||
+        friendsList.some((f) => (f._id || f.id).toString() === response.user.id.toString());
+      setIsSearchUserFriend(isFriend);
     } catch (error) {
       setSearchResults(null);
       setInvitationStatus(null);
+      setIsSearchUserFriend(false);
     } finally {
       setSearching(false);
+    }
+  };
+
+  const handleAddFriendDirectly = async (friendUser) => {
+    const friendId = (friendUser._id || friendUser.id).toString();
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setAddingFriendId(friendId);
+    setLoading(true);
+
+    try {
+      await groupService.addMemberToGroup(groupId, friendId);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+      setAddedMemberIds((prev) => [...prev, friendId]);
+
+      if (searchResults && (searchResults.id || searchResults._id).toString() === friendId) {
+        setSearchResults(null);
+      }
+
+      showAlert({
+        type: "success",
+        title: "Friend Added! 🎉",
+        message: `${friendUser.name} has joined the group directly.`,
+      });
+    } catch (error) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      showAlert({
+        type: "error",
+        title: "Error",
+        message: error.response?.data?.message || "Failed to add friend to group.",
+      });
+    } finally {
+      setAddingFriendId(null);
+      setLoading(false);
     }
   };
 
@@ -256,6 +319,16 @@ export default function AddMemberScreen({ route, navigation }) {
     );
   }
 
+  const filteredFriends = friendsList.filter((friend) => {
+    if (!friendFilter.trim()) return true;
+    const query = friendFilter.toLowerCase().trim();
+    return (
+      (friend.name && friend.name.toLowerCase().includes(query)) ||
+      (friend.email && friend.email.toLowerCase().includes(query)) ||
+      (friend.username && friend.username.toLowerCase().includes(query))
+    );
+  });
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
@@ -265,32 +338,36 @@ export default function AddMemberScreen({ route, navigation }) {
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : null}
       >
-        {/* Main Header */}
-        <View style={[styles.header, { paddingTop: insets.top + 20 }]}>
-          <View style={styles.iconContainer}>
-            <Ionicons name="person-add" size={32} color={COLORS.primary} />
+        {/* Compact Header */}
+        <View style={[styles.header, { paddingTop: 20 }]}>
+          <View style={styles.headerRow}>
+            <View style={styles.iconContainer}>
+              <Ionicons name="person-add" size={20} color={COLORS.primary} />
+            </View>
+            <View style={styles.headerTextWrap}>
+              <Text style={styles.title}>Add Member</Text>
+              <Text style={styles.subtitle}>Bring friends into your group</Text>
+            </View>
           </View>
-          <Text style={styles.title}>Add Member</Text>
-          <Text style={styles.subtitle}>Bring more friends into the group</Text>
         </View>
 
         {/* Tab Selector */}
         <View style={styles.tabContainer}>
           <TouchableOpacity
-            style={[styles.tab, activeTab === "search" && styles.activeTab]}
+            style={[styles.tab, activeTab === "friends" && styles.activeTab]}
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              setActiveTab("search");
+              setActiveTab("friends");
             }}
             activeOpacity={0.8}
           >
             <Ionicons
-              name="search-outline"
+              name="people-outline"
               size={18}
-              color={activeTab === "search" ? COLORS.white : COLORS.gray}
+              color={activeTab === "friends" ? COLORS.white : COLORS.gray}
             />
-            <Text style={[styles.tabText, activeTab === "search" && styles.activeTabText]}>
-              Search User
+            <Text style={[styles.tabText, activeTab === "friends" && styles.activeTabText]}>
+              My Friends
             </Text>
           </TouchableOpacity>
 
@@ -318,157 +395,107 @@ export default function AddMemberScreen({ route, navigation }) {
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="always"
         >
-          {/* TAB 1: SEARCH & INVITE */}
-          {activeTab === "search" && (
+          {/* TAB 1: MY FRIENDS (DIRECT ADD) */}
+          {activeTab === "friends" && (
             <Animated.View entering={FadeInUp.duration(400)} style={styles.tabView}>
-              {/* Search Box - High Stability */}
+              {/* Filter Friends Search Bar */}
               <View style={styles.searchBox}>
                 <Ionicons name="search-outline" size={20} color={COLORS.gray} />
                 <TextInput
-                  key="member-search-input-stable"
+                  key="friends-filter-input"
                   style={styles.input}
-                  placeholder="Email or username..."
+                  placeholder="Filter friends by name..."
                   placeholderTextColor={COLORS.gray + "80"}
-                  value={email}
-                  onChangeText={setEmail}
+                  value={friendFilter}
+                  onChangeText={setFriendFilter}
                   autoCapitalize="none"
                   autoCorrect={false}
-                  spellCheck={false}
                   editable={true}
                 />
-                <View style={{ width: 30, alignItems: "center", justifyContent: "center" }}>
-                  {searching ? (
-                    <ActivityIndicator size="small" color={COLORS.primary} />
-                  ) : email.length > 0 ? (
-                    <TouchableOpacity onPress={() => setEmail("")} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                      <Ionicons name="close-circle" size={20} color={COLORS.gray} />
-                    </TouchableOpacity>
-                  ) : null}
-                </View>
+                {friendFilter.length > 0 && (
+                  <TouchableOpacity onPress={() => setFriendFilter("")} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                    <Ionicons name="close-circle" size={20} color={COLORS.gray} />
+                  </TouchableOpacity>
+                )}
               </View>
 
-              {/* Results Area */}
               <View style={styles.resultsArea}>
-                {searchResults ? (
-                  <Animated.View entering={ZoomIn.duration(400)} layout={Layout.springify()} style={styles.userCard}>
-                    <View style={styles.cardHeader}>
-                      <View style={styles.squircleAvatar}>
-                        {searchResults.avatar ? (
-                          <Image source={{ uri: searchResults.avatar }} style={styles.resultAvatarImage} />
-                        ) : (
-                          <Text style={styles.avatarText}>{searchResults.name.substring(0, 1).toUpperCase()}</Text>
-                        )}
-                      </View>
-                      <View style={styles.userInfo}>
-                        <Text style={styles.userName}>{searchResults.name}</Text>
-                        <Text style={styles.userHandle}>@{searchResults.username || "user"}</Text>
-                      </View>
-                      <View style={styles.badge}>
-                        <Ionicons name="shield-checkmark" size={16} color={COLORS.primary} />
-                      </View>
-                    </View>
+                {loadingFriends ? (
+                  <View style={styles.loadingGroupContainer}>
+                    <ActivityIndicator size="large" color={COLORS.primary} />
+                    <Text style={styles.loadingText}>Loading your friends list...</Text>
+                  </View>
+                ) : filteredFriends.length > 0 ? (
+                  filteredFriends.map((friend) => {
+                    const friendId = (friend._id || friend.id).toString();
+                    const isAlreadyMember = addedMemberIds.includes(friendId);
+                    const isAddingThisFriend = addingFriendId === friendId;
 
-                    <View style={styles.cardDivider} />
-
-                    <View style={styles.emailRow}>
-                      <Ionicons name="mail-outline" size={16} color={COLORS.gray} />
-                      <Text style={styles.emailText}>{searchResults.email}</Text>
-                    </View>
-
-                    <View style={styles.actionRow}>
-                      {invitationStatus === "pending" ? (
-                        <TouchableOpacity
-                          style={styles.cancelInviteButton}
-                          onPress={handleCancelInvitation}
-                          disabled={cancellingInvite}
-                          activeOpacity={0.85}
-                        >
-                          {cancellingInvite ? (
-                            <ActivityIndicator size="small" color="#FFF" />
+                    return (
+                      <Animated.View
+                        key={friendId}
+                        entering={FadeInUp.duration(300)}
+                        style={styles.friendCard}
+                      >
+                        <View style={styles.squircleAvatar}>
+                          {friend.avatar ? (
+                            <Image source={{ uri: friend.avatar }} style={styles.resultAvatarImage} />
                           ) : (
-                            <>
-                              <Ionicons name="close-circle-outline" size={18} color="#FFF" style={{ marginRight: 6 }} />
-                              <Text style={styles.cancelInviteText}>Cancel Invitation</Text>
-                            </>
+                            <Text style={styles.avatarText}>
+                              {(friend.name || "F").charAt(0).toUpperCase()}
+                            </Text>
                           )}
-                        </TouchableOpacity>
-                      ) : (
-                        <TouchableOpacity
-                          style={styles.inviteButton}
-                          onPress={handleSendInvite}
-                          disabled={loading}
-                        >
-                          <LinearGradient
-                            colors={[COLORS.primary, "#6366f1"]}
-                            style={styles.inviteGradient}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 0 }}
-                          >
-                            {loading ? (
-                              <ActivityIndicator size="small" color="#FFF" />
-                            ) : (
-                              <>
-                                <Text style={styles.inviteText}>Send Invitation</Text>
-                                <Ionicons name="arrow-forward" size={18} color="#FFF" style={{ marginLeft: 8 }} />
-                              </>
-                            )}
-                          </LinearGradient>
-                        </TouchableOpacity>
-                      )}
-                    </View>
-                  </Animated.View>
-                ) : email.length === 0 && recentMembers.length > 0 ? (
-                  <Animated.View entering={FadeInUp.duration(400)} style={styles.recentSection}>
-                    <Text style={styles.recentTitle}>Recent Invites</Text>
-                    <View style={styles.recentCard}>
-                      {recentMembers.slice(0, 5).map((member, index, arr) => (
-                        <View key={member.id || member._id || index}>
-                          <TouchableOpacity
-                            style={styles.recentRow}
-                            onPress={() => {
-                              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                              setEmail(member.email || member.username);
-                            }}
-                            activeOpacity={0.7}
-                          >
-                            <View style={styles.recentAvatar}>
-                              {member.avatar ? (
-                                <Image source={{ uri: member.avatar }} style={styles.recentAvatarImage} />
-                              ) : (
-                                <Text style={styles.recentAvatarText}>
-                                  {member.name ? member.name.charAt(0).toUpperCase() : "U"}
-                                </Text>
-                              )}
-                            </View>
-                            <View style={styles.recentInfo}>
-                              <Text style={styles.recentName}>{member.name}</Text>
-                              <Text style={styles.recentHandle}>@{member.username || "user"}</Text>
-                            </View>
-                            <Ionicons name="arrow-forward" size={18} color={COLORS.gray + "80"} />
-                          </TouchableOpacity>
-                          {index < arr.length - 1 && <View style={styles.recentDivider} />}
                         </View>
-                      ))}
-                    </View>
-                  </Animated.View>
+                        <View style={styles.userInfo}>
+                          <Text style={styles.userName} numberOfLines={1}>{friend.name}</Text>
+                          <Text style={styles.userHandle} numberOfLines={1}>@{friend.username || "friend"}</Text>
+                        </View>
+                        {isAlreadyMember ? (
+                          <View style={styles.alreadyMemberBadge}>
+                            <Ionicons name="checkmark-circle" size={15} color="#10B981" />
+                            <Text style={styles.alreadyMemberText}>Joined</Text>
+                          </View>
+                        ) : (
+                          <TouchableOpacity
+                            style={styles.directAddButton}
+                            onPress={() => handleAddFriendDirectly(friend)}
+                            disabled={isAddingThisFriend}
+                            activeOpacity={0.85}
+                          >
+                            <LinearGradient
+                              colors={[COLORS.primary, "#6366f1"]}
+                              style={styles.directAddGradient}
+                              start={{ x: 0, y: 0 }}
+                              end={{ x: 1, y: 0 }}
+                            >
+                              {isAddingThisFriend ? (
+                                <ActivityIndicator size="small" color="#FFF" />
+                              ) : (
+                                <>
+                                  <Ionicons name="person-add" size={14} color="#FFF" style={{ marginRight: 4 }} />
+                                  <Text style={styles.directAddText}>Add</Text>
+                                </>
+                              )}
+                            </LinearGradient>
+                          </TouchableOpacity>
+                        )}
+                      </Animated.View>
+                    );
+                  })
                 ) : (
-                  <Animated.View entering={FadeInUp.delay(400)} style={styles.emptyContainer}>
+                  <View style={styles.emptyContainer}>
                     <View style={styles.emptyIconBox}>
-                      <Ionicons
-                        name={email.length >= 3 ? "person-outline" : "search-outline"}
-                        size={40}
-                        color={COLORS.gray + "40"}
-                      />
+                      <Ionicons name="people-outline" size={40} color={COLORS.gray + "40"} />
                     </View>
                     <Text style={styles.emptyTitle}>
-                      {email.length >= 3 ? "Searching for results..." : "Start searching"}
+                      {friendFilter.length > 0 ? "No friends match filter" : "No friends found"}
                     </Text>
                     <Text style={styles.emptySubtitle}>
-                      {email.length >= 3
-                        ? "Looking through our records..."
-                        : "Enter a friend's email or username to find them."}
+                      {friendFilter.length > 0
+                        ? "Try searching with a different name or username."
+                        : "Add friends first to quickly add them directly to your groups!"}
                     </Text>
-                  </Animated.View>
+                  </View>
                 )}
               </View>
             </Animated.View>
@@ -582,36 +609,43 @@ const styles = StyleSheet.create({
     backgroundColor: "#F8F9FA",
   },
   scrollContent: {
-    padding: 24,
-    paddingTop: 8,
-    paddingBottom: 40,
+    padding: 16,
+    paddingTop: 4,
+    paddingBottom: 30,
   },
   tabView: {
     width: "100%",
   },
   header: {
+    paddingHorizontal: 20,
+    marginBottom: 10,
+  },
+  headerRow: {
+    flexDirection: "row",
     alignItems: "center",
-    marginBottom: 20,
+  },
+  headerTextWrap: {
+    flex: 1,
   },
   iconContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: 20,
+    width: 38,
+    height: 38,
+    borderRadius: 12,
     backgroundColor: COLORS.primary + "12",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 12,
+    marginRight: 10,
   },
   title: {
-    fontSize: 24,
+    fontSize: 18,
     fontWeight: "800",
     color: COLORS.dark,
-    letterSpacing: -0.5,
+    letterSpacing: -0.3,
   },
   subtitle: {
-    fontSize: 14,
+    fontSize: 12,
     color: COLORS.gray,
-    marginTop: 4,
+    marginTop: 1,
     fontWeight: "500",
   },
 
@@ -619,25 +653,25 @@ const styles = StyleSheet.create({
   tabContainer: {
     flexDirection: "row",
     backgroundColor: "#E2E8F0",
-    borderRadius: 16,
-    padding: 4,
-    marginHorizontal: 24,
-    marginBottom: 16,
+    borderRadius: 12,
+    padding: 3,
+    marginHorizontal: 16,
+    marginBottom: 10,
   },
   tab: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 12,
-    borderRadius: 12,
+    paddingVertical: 8,
+    borderRadius: 9,
     gap: 6,
   },
   activeTab: {
     backgroundColor: COLORS.primary,
   },
   tabText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "600",
     color: COLORS.gray,
   },
@@ -649,9 +683,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    height: 58,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    height: 48,
     borderWidth: 1.5,
     borderColor: "#E2E8F0",
     shadowColor: "#000",
@@ -1039,5 +1073,55 @@ const styles = StyleSheet.create({
     color: "#FFF",
     fontSize: 15,
     fontWeight: "700",
+  },
+  friendCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: "#EBEBF0",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  directAddButton: {
+    borderRadius: 12,
+    overflow: "hidden",
+    height: 36,
+    minWidth: 76,
+  },
+  directAddGradient: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 14,
+  },
+  directAddText: {
+    color: "#FFF",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  alreadyMemberBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#ECFDF5",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+    gap: 4,
+  },
+  alreadyMemberText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#059669",
   },
 });

@@ -38,6 +38,13 @@ export default function ExpenseCard({ expense, onPress, currency = "INR" }) {
   const categoryIconName = category?.icon || "receipt-outline";
   const categoryNameLabel = category?.name;
   
+  const splits = expense.splits || [];
+  let isEqualSplit = true;
+  if (splits.length > 0) {
+    const firstAmt = splits[0]?.amount;
+    isEqualSplit = splits.every((s) => Math.abs((s.amount || 0) - (firstAmt || 0)) < 0.05);
+  }
+
   const perPerson = expense.amount / (expense.splitBetween?.length || 1);
   const currencySymbol = CURRENCY_SYMBOLS[currency] || "₹";
 
@@ -58,27 +65,20 @@ export default function ExpenseCard({ expense, onPress, currency = "INR" }) {
               {expense.createdAt && (
                 <Text style={styles.dateText}>{formatDate(expense.createdAt)}</Text>
               )}
-              {categoryNameLabel && (
-                <>
-                  <View style={[styles.categoryMiniChip, { backgroundColor: accentColor + "10" }]}>
-                    <Text
-                      style={[styles.categoryMiniChipText, { color: accentColor }]}
-                      numberOfLines={1}
-                      ellipsizeMode="tail"
-                    >
-                      {categoryNameLabel}
-                    </Text>
-                  </View>
-                </>
-              )}
             </View>
           </View>
           <View style={styles.amountBlock}>
             <Text style={styles.amount}>{currencySymbol}{Number(expense.amount).toFixed(2)}</Text>
-            <View style={styles.perPersonRow}>
-              <Text style={styles.perPerson}>{currencySymbol}{perPerson.toFixed(2)} /</Text>
-              <Ionicons name="person-outline" size={10} color="#9CA3AF" />
-            </View>
+            {isEqualSplit ? (
+              <View style={styles.perPersonRow}>
+                <Text style={styles.perPerson}>{currencySymbol}{perPerson.toFixed(2)} /</Text>
+                <Ionicons name="person-outline" size={10} color="#9CA3AF" />
+              </View>
+            ) : (
+              <View style={styles.perPersonRow}>
+                <Text style={styles.perPerson}>Unequal Split</Text>
+              </View>
+            )}
           </View>
         </View>
 
@@ -115,7 +115,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     backgroundColor: "#FFFFFF",
     borderRadius: 18,
-    marginBottom: 12,
+    marginBottom: 4,
     borderWidth: 1,
     borderColor: "#F0F0F0",
     ...SHADOWS.soft,

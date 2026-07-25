@@ -455,7 +455,7 @@ export default function GroupsListScreen({ navigation }) {
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
             >
-              <Ionicons name="add" size={24} color="#FFF" />
+              <Ionicons name="add" size={18} color="#FFF" />
               <Text style={styles.fabLabel}>Create Group</Text>
             </LinearGradient>
           </TouchableOpacity>
@@ -654,14 +654,14 @@ const styles = StyleSheet.create({
   },
   fabContainer: {
     position: "absolute",
-    right: 24,
+    right: 20,
     alignItems: "center",
     justifyContent: "center",
     zIndex: 999,
   },
   fab: {
-    height: 54,
-    borderRadius: 27,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: ACCENT,
     // Explicitly no shadow as requested
     shadowColor: "transparent",
@@ -669,15 +669,15 @@ const styles = StyleSheet.create({
   },
   fabGradient: {
     flex: 1,
-    borderRadius: 27,
+    borderRadius: 22,
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 22,
-    gap: 8,
+    paddingHorizontal: 14,
+    gap: 6,
   },
   fabLabel: {
     color: "#FFF",
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: "800",
     letterSpacing: 0.3,
   },

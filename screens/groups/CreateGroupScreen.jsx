@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -18,7 +18,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import QRCode from "react-native-qrcode-svg";
 import * as Clipboard from "expo-clipboard";
-import { groupService } from "../../services/authService";
+import { groupService, friendService } from "../../services/authService";
 import { COLORS, SHADOWS } from "../../utils/constants";
 import { FadeInDown, FadeInUp, ZoomIn } from "react-native-reanimated";
 import AnimatedView from "../../components/AnimatedView";
@@ -50,6 +50,29 @@ export default function CreateGroupScreen({ navigation, route }) {
   const [activeTab, setActiveTab] = useState("members"); // "members" or "qrCode"
   const [copied, setCopied] = useState(false);
   const [members, setMembers] = useState(groupToEdit?.members || []);
+
+  // Creation mode friend selection state
+  const [friendsList, setFriendsList] = useState([]);
+  const [selectedFriendIds, setSelectedFriendIds] = useState([]);
+  const [loadingFriends, setLoadingFriends] = useState(false);
+
+  useEffect(() => {
+    if (!isEditing) {
+      fetchFriends();
+    }
+  }, [isEditing]);
+
+  const fetchFriends = async () => {
+    try {
+      setLoadingFriends(true);
+      const res = await friendService.getFriends();
+      setFriendsList(res.friends || []);
+    } catch (error) {
+      console.error("Failed to load friends for group creation:", error);
+    } finally {
+      setLoadingFriends(false);
+    }
+  };
 
   const handleCopyCode = async () => {
     const inviteCode = groupToEdit?.inviteCode;
@@ -145,14 +168,18 @@ export default function CreateGroupScreen({ navigation, route }) {
       } else {
         const response = await groupService.createGroup(
           groupName.trim(),
-          [],
+          selectedFriendIds,
           currency,
         );
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         showAlert({
           type: "success",
           title: "Group Created! 🎉",
-          message: `"${groupName}" is ready. Share the invite link with friends.`,
+          message: `"${groupName}" is ready. ${
+            selectedFriendIds.length > 0
+              ? `${selectedFriendIds.length} friend(s) joined directly!`
+              : "Share the invite link with friends."
+          }`,
           buttons: [
             {
               text: "Share Invite",
@@ -489,43 +516,104 @@ export default function CreateGroupScreen({ navigation, route }) {
               )}
             </>
           ) : (
-            /* Creation Mode: Direct Locked Preview */
+            /* Creation Mode: Direct Friend Add */
             <>
-              <Text style={styles.inputLabel}>Invite Friends Instantly</Text>
-              <AnimatedView entering={FadeInUp.duration(300)} style={[styles.qrTabView, { marginTop: 12 }]}>
-                <View style={styles.qrCard}>
-                  <Text style={styles.qrTitle}>Join Group Instantly</Text>
-                  <Text style={styles.qrDesc}>
-                    Once your group is created, a unique QR Code and Invite Link will be generated instantly.
-                  </Text>
-
-                  {/* Locked/Mock QR Container */}
-                  <View style={styles.qrPlaceholderContainer}>
-                    <View style={[styles.qrContainer, { opacity: 0.25 }]}>
-                      <QRCode
-                        value="splitmate://preview"
-                        size={150}
-                        color="#9CA3AF"
-                        backgroundColor={COLORS.white}
-                      />
-                    </View>
-                    <View style={[styles.qrLockOverlay, SHADOWS.medium]}>
-                      <Ionicons name="lock-closed" size={24} color="#FFF" />
-                    </View>
+              <Text style={styles.inputLabel}>Add Friends (Direct Join)</Text>
+              <AnimatedView entering={FadeInUp.duration(300)} style={{ marginTop: 12 }}>
+                {loadingFriends ? (
+                  <View style={{ paddingVertical: 20, alignItems: "center" }}>
+                    <ActivityIndicator size="small" color={COLORS.primary} />
+                    <Text style={{ fontSize: 13, color: COLORS.gray, marginTop: 8 }}>Loading friends...</Text>
                   </View>
+                ) : friendsList.length > 0 ? (
+                  <View>
+                    <Text style={{ fontSize: 12, color: COLORS.gray, marginBottom: 12 }}>
+                      Selected friends join directly into the group without needing any request.
+                    </Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingVertical: 4 }}>
+                      {friendsList.map((friend) => {
+                        const friendId = (friend._id || friend.id).toString();
+                        const isSelected = selectedFriendIds.includes(friendId);
+                        return (
+                          <TouchableOpacity
+                            key={friendId}
+                            style={[
+                              styles.friendSelectItem,
+                              isSelected && styles.friendSelectItemActive,
+                            ]}
+                            onPress={() => {
+                              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                              if (isSelected) {
+                                setSelectedFriendIds((prev) => prev.filter((id) => id !== friendId));
+                              } else {
+                                setSelectedFriendIds((prev) => [...prev, friendId]);
+                              }
+                            }}
+                            activeOpacity={0.8}
+                          >
+                            <View style={styles.friendAvatarBox}>
+                              {friend.avatar ? (
+                                <Image source={{ uri: friend.avatar }} style={styles.friendAvatarImage} />
+                              ) : (
+                                <Text style={styles.friendAvatarInitials}>
+                                  {(friend.name || "F").charAt(0).toUpperCase()}
+                                </Text>
+                              )}
+                              {isSelected ? (
+                                <View style={styles.checkBadge}>
+                                  <Ionicons name="checkmark" size={10} color="#FFF" />
+                                </View>
+                              ) : (
+                                <View style={styles.plusBadge}>
+                                  <Ionicons name="add" size={10} color="#FFF" />
+                                </View>
+                              )}
+                            </View>
+                            <Text style={[styles.friendSelectName, isSelected && { color: COLORS.primary, fontWeight: "700" }]} numberOfLines={1}>
+                              {friend.name.split(" ")[0]}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
 
-                  <View style={styles.codeTextContainer}>
-                    <Text style={styles.codeLabel}>INVITE CODE</Text>
-                    <View style={[styles.codeRow, { justifyContent: "center" }]}>
-                      <Text style={[styles.codeDisplay, { color: COLORS.gray + "60", letterSpacing: 4 }]}>
-                        XXXXXX
-                      </Text>
-                    </View>
+                      {/* Plus Icon Card at the end of Friends list */}
+                      <TouchableOpacity
+                        style={styles.addMoreFriendCard}
+                        onPress={() => {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          navigation.navigate("Friends");
+                        }}
+                        activeOpacity={0.8}
+                      >
+                        <View style={styles.addMoreIconBox}>
+                          <Ionicons name="add" size={22} color={COLORS.primary} />
+                        </View>
+                        <Text style={styles.addMoreText} numberOfLines={1}>
+                          Add More
+                        </Text>
+                      </TouchableOpacity>
+                    </ScrollView>
                   </View>
+                ) : (
+                  <View style={{ padding: 16, backgroundColor: "#FAFAFD", borderRadius: 14, alignItems: "center" }}>
+                    <Ionicons name="people-outline" size={28} color={COLORS.gray + "60"} />
+                    <Text style={{ fontSize: 13, color: COLORS.gray, marginTop: 6, textAlign: "center" }}>
+                      No friends found. Add friends or share the group invite code after creation!
+                    </Text>
+                  </View>
+                )}
 
-                  <Text style={styles.qrInfoText}>
-                    ✨ Ready to be shared after creation!
-                  </Text>
+                {/* QR Code Info Banner */}
+                <View style={styles.qrInfoBanner}>
+                  <View style={styles.qrInfoIconBox}>
+                    <Ionicons name="qr-code-outline" size={24} color={COLORS.primary} />
+                  </View>
+                  <View style={styles.qrInfoContent}>
+                    <Text style={styles.qrInfoTitle}>Instant QR & Invite Code</Text>
+                    <Text style={styles.qrInfoSubtitle}>
+                      After creating the group, you can easily invite anyone to join using the QR Code or Invite Code! 📲✨
+                    </Text>
+                  </View>
                 </View>
               </AnimatedView>
             </>
@@ -940,5 +1028,142 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: "#FFF",
     zIndex: 10,
+  },
+  friendSelectItem: {
+    alignItems: "center",
+    width: 64,
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: "#EBEBF2",
+    backgroundColor: "#FFF",
+  },
+  friendSelectItemActive: {
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.primary + "0A",
+  },
+  friendAvatarBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: COLORS.primary + "15",
+    alignItems: "center",
+    justifyContent: "center",
+    position: "relative",
+  },
+  friendAvatarImage: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+  },
+  friendAvatarInitials: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: COLORS.primary,
+  },
+  checkBadge: {
+    position: "absolute",
+    bottom: -3,
+    right: -3,
+    backgroundColor: COLORS.primary,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: "#FFF",
+  },
+  friendSelectName: {
+    fontSize: 11,
+    fontWeight: "500",
+    color: COLORS.dark,
+    marginTop: 6,
+    textAlign: "center",
+    width: "100%",
+  },
+  qrInfoBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.primary + "0A",
+    borderRadius: 16,
+    padding: 14,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: COLORS.primary + "20",
+  },
+  qrInfoIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: COLORS.white,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+    borderWidth: 1,
+    borderColor: COLORS.primary + "20",
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  qrInfoContent: {
+    flex: 1,
+  },
+  qrInfoTitle: {
+    fontSize: 14,
+    fontWeight: "750",
+    color: COLORS.dark,
+    marginBottom: 3,
+  },
+  qrInfoSubtitle: {
+    fontSize: 12,
+    color: COLORS.gray,
+    lineHeight: 17,
+    fontWeight: "500",
+  },
+  plusBadge: {
+    position: "absolute",
+    bottom: -3,
+    right: -3,
+    backgroundColor: COLORS.gray + "B0",
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: "#FFF",
+  },
+  addMoreFriendCard: {
+    alignItems: "center",
+    width: 64,
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: COLORS.primary + "40",
+    borderStyle: "dashed",
+    backgroundColor: COLORS.primary + "06",
+  },
+  addMoreIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: COLORS.primary + "12",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: COLORS.primary + "20",
+  },
+  addMoreText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: COLORS.primary,
+    marginTop: 6,
+    textAlign: "center",
+    width: "100%",
   },
 });
