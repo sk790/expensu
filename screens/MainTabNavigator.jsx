@@ -5,6 +5,7 @@ import React from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { COLORS } from "../utils/constants";
+import { useAuth } from "../context/AuthContext";
 
 // Import screens
 import AddExpenseScreen from "./groups/AddExpenseScreen";
@@ -163,6 +164,7 @@ function ProfileStack() {
 export default function MainTabNavigator() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = 58 + insets.bottom;
+  const { aiModeEnabled } = useAuth();
 
   return (
     <Tab.Navigator
@@ -209,7 +211,7 @@ export default function MainTabNavigator() {
       <Tab.Screen name="Groups" component={GroupsStack} />
       <Tab.Screen name="Friends" component={FriendsScreen} />
       <Tab.Screen name="History" component={HistoryScreen} />
-      <Tab.Screen name="AI" component={AIChatScreen} />
+      {aiModeEnabled && <Tab.Screen name="AI" component={AIChatScreen} />}
       <Tab.Screen name="Profile" component={ProfileStack} />
     </Tab.Navigator>
   );

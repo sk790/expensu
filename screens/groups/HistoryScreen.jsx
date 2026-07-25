@@ -120,11 +120,9 @@ export default function HistoryScreen() {
     }
   };
 
-  useFocusEffect(
-    useCallback(() => {
-      fetchAllHistory(true);
-    }, [])
-  );
+  useEffect(() => {
+    fetchAllHistory(true);
+  }, []);
 
   const onRefresh = () => {
     setRefreshing(true);

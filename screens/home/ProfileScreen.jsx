@@ -9,6 +9,7 @@ import {
   StatusBar,
   Image,
   RefreshControl,
+  Switch,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -25,7 +26,7 @@ import { useAlert } from "../../hooks/useAlert";
 import LoadingSpinner from "../../components/LoadingSpinner";
 
 export default function ProfileScreen({ navigation }) {
-  const { user, updateUser, logout } = useAuth();
+  const { user, updateUser, logout, aiModeEnabled, toggleAiMode } = useAuth();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const { alertProps, showAlert } = useAlert();
@@ -262,6 +263,37 @@ export default function ProfileScreen({ navigation }) {
               color="#C0C0C0"
             />
           </TouchableOpacity>
+
+          <View style={styles.infoDivider} />
+
+          {/* AI Mode Toggle (Disabled / Coming Soon) */}
+          <View style={[styles.menuItem, { opacity: 0.7 }]}>
+            <View
+              style={[
+                styles.infoIconBox,
+                { backgroundColor: "#9CA3AF" + "18" },
+              ]}
+            >
+              <Ionicons name="sparkles" size={20} color="#9CA3AF" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <Text style={[styles.menuText, { color: "#6B7280" }]}>AI Mode</Text>
+                <View style={{ backgroundColor: COLORS.primary + "15", paddingHorizontal: 6, paddingVertical: 1, borderRadius: 6 }}>
+                  <Text style={{ fontSize: 9, fontWeight: "800", color: COLORS.primary, textTransform: "uppercase" }}>Coming Soon</Text>
+                </View>
+              </View>
+              <Text style={{ fontSize: 11, color: "#9CA3AF", marginTop: 1 }}>
+                AI Assistant tab (Disabled for now)
+              </Text>
+            </View>
+            <Switch
+              value={false}
+              disabled={true}
+              trackColor={{ false: "#E5E5EA", true: COLORS.primary + "80" }}
+              thumbColor="#D1D5DB"
+            />
+          </View>
 
           <View style={styles.infoDivider} />
 

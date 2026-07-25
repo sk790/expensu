@@ -86,4 +86,22 @@ export const storage = {
       return [];
     }
   },
+
+  async getAiMode() {
+    try {
+      const val = await AsyncStorage.getItem('aiModeEnabled');
+      return val !== null ? JSON.parse(val) : false;
+    } catch (error) {
+      console.error('Error getting AI mode:', error);
+      return false;
+    }
+  },
+
+  async setAiMode(enabled) {
+    try {
+      await AsyncStorage.setItem('aiModeEnabled', JSON.stringify(enabled));
+    } catch (error) {
+      console.error('Error setting AI mode:', error);
+    }
+  },
 };

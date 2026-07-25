@@ -300,7 +300,7 @@ export default function GroupsListScreen({ navigation }) {
 
         <AnimatedView entering={FadeInDown.duration(480).delay(140)}>
           <View style={styles.searchWrap}>
-            <Ionicons name="search" size={18} color={COLORS.primary} />
+            <Ionicons name="search" size={16} color={COLORS.primary} />
             <TextInput
               style={styles.searchInput}
               placeholder="Search groups…"
@@ -311,7 +311,7 @@ export default function GroupsListScreen({ navigation }) {
             />
             {searchQuery.length > 0 && (
               <TouchableOpacity onPress={() => setSearchQuery("")}>
-                <Ionicons name="close-circle" size={18} color="#CCC" />
+                <Ionicons name="close-circle" size={16} color="#CCC" />
               </TouchableOpacity>
             )}
           </View>
@@ -583,16 +583,17 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#FFFFFF",
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: Platform.OS === "ios" ? 12 : 8,
-    gap: 10,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    height: 36,
+    gap: 8,
   },
   searchInput: {
     flex: 1,
-    fontSize: 15,
+    fontSize: 13.5,
     color: "#1A1A2E",
     fontWeight: "500",
+    paddingVertical: 0,
   },
   sectionLabel: {
     fontSize: 13,

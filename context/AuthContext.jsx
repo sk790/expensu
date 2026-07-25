@@ -7,6 +7,7 @@ const AuthContext = createContext({});
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [aiModeEnabled, setAiModeEnabled] = useState(false);
 
   useEffect(() => {
     loadUser();
@@ -16,6 +17,8 @@ export const AuthProvider = ({ children }) => {
     try {
       const savedUser = await storage.getUser();
       const token = await storage.getToken();
+      const aiMode = await storage.getAiMode();
+      setAiModeEnabled(!!aiMode);
       if (savedUser && token) {
         setUser(savedUser);
       }
@@ -24,6 +27,11 @@ export const AuthProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const toggleAiMode = async (value) => {
+    setAiModeEnabled(value);
+    await storage.setAiMode(value);
   };
 
   const login = async (email, password) => {
@@ -53,7 +61,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, updateUser, loading }}>
+    <AuthContext.Provider value={{ user, login, register, logout, updateUser, loading, aiModeEnabled, toggleAiMode }}>
       {children}
     </AuthContext.Provider>
   );
